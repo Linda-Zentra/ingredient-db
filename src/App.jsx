@@ -59,7 +59,7 @@ const supabase = {
 };
 
 // ============================================================
-// 常量
+// 字段定义
 // ============================================================
 const SKU_FIELDS = [
   { key: "region", label: "地区", label_en: "Region" },
@@ -75,25 +75,38 @@ const SKU_FIELDS = [
   { key: "health_canada_monograph", label: "HC Monograph", label_en: "HC Monograph" },
   { key: "moq_kg", label: "MOQ kg", label_en: "MOQ kg" },
   { key: "can_apply_npn", label: "能否申NPN", label_en: "NPN Eligible" },
+  { key: "npn_notes", label: "NPN备注", label_en: "NPN Notes" },
   { key: "applicable_gender", label: "适用性别", label_en: "Gender" },
   { key: "applicable_population", label: "适用人群", label_en: "Population" },
   { key: "notes", label: "备注", label_en: "Notes" },
   { key: "certificates", label: "Certificates", label_en: "Certificates" },
 ];
 
+// 表格显示所有列
 const TABLE_COLS = [
-  { key: "region", label: "地区", w: 100 },
-  { key: "supplier_name", label: "供应商", w: 140 },
-  { key: "product_name", label: "品名", w: 160 },
-  { key: "ingredient", label: "成分", w: 160 },
-  { key: "form_potency", label: "Form & Potency", w: 140 },
-  { key: "price_usd_kg", label: "USD/KG", w: 120 },
+  { key: "region", label: "地区", w: 90 },
+  { key: "supplier_name", label: "供应商", w: 130 },
+  { key: "contact_email", label: "联系人", w: 130 },
+  { key: "is_account_opened", label: "是否开户", w: 80 },
+  { key: "agreement_signed", label: "Agreement", w: 110 },
+  { key: "product_name", label: "品名", w: 150 },
+  { key: "form_potency", label: "Form & Potency", w: 130 },
+  { key: "ingredient", label: "成分", w: 150 },
+  { key: "extraction_ratio_source", label: "提取比例/来源", w: 120 },
+  { key: "lead_time", label: "交付周期", w: 100 },
+  { key: "expire_date", label: "Expire", w: 90 },
+  { key: "price_usd_kg", label: "USD/KG", w: 110 },
   { key: "price_cad_kg", label: "CAD/KG", w: 100 },
-  { key: "functions", label: "功能", w: 200 },
-  { key: "daily_recommended_dose", label: "日推荐摄入量", w: 110 },
-  { key: "health_canada_monograph", label: "HC Monograph", w: 120 },
-  { key: "moq_kg", label: "MOQ", w: 80 },
+  { key: "daily_recommended_dose", label: "日推荐摄入量", w: 100 },
+  { key: "health_canada_monograph", label: "HC Monograph", w: 110 },
+  { key: "moq_kg", label: "MOQ", w: 70 },
+  { key: "functions", label: "功能", w: 180 },
   { key: "can_apply_npn", label: "NPN", w: 60 },
+  { key: "npn_notes", label: "NPN备注", w: 120 },
+  { key: "applicable_gender", label: "性别", w: 50 },
+  { key: "applicable_population", label: "人群", w: 60 },
+  { key: "notes", label: "备注", w: 120 },
+  { key: "certificates", label: "Certificates", w: 120 },
 ];
 
 // ============================================================
@@ -145,18 +158,13 @@ function AddCategoryForm({ onAdd, onClose }) {
   const handleSubmit = async () => {
     if (!zh.trim()) { alert("请填写中文名"); return; }
     setSaving(true);
-    try {
-      await onAdd({ name_zh: zh.trim(), name_en: en.trim() || null, color });
-      onClose();
-    } catch (e) { alert("添加失败: " + e.message); }
+    try { await onAdd({ name_zh: zh.trim(), name_en: en.trim() || null, color }); onClose(); }
+    catch (e) { alert("添加失败: " + e.message); }
     setSaving(false);
   };
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 1200,
-      display: "flex", justifyContent: "center", alignItems: "center",
-    }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 1200, display: "flex", justifyContent: "center", alignItems: "center" }}>
       <div style={{ background: "#fff", borderRadius: 12, width: 400, padding: "24px 28px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0f172a" }}>新建功能分类</h3>
@@ -199,7 +207,95 @@ function AddCategoryForm({ onAdd, onClose }) {
 }
 
 // ============================================================
-// 详情面板 + 编辑
+// 管理分类弹窗（编辑 + 删除）
+// ============================================================
+function ManageCategoriesForm({ categories, onUpdate, onDelete, onClose }) {
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+
+  const startEdit = (cat) => {
+    setEditingId(cat.id);
+    setEditForm({ name_zh: cat.name_zh, name_en: cat.name_en || "", color: cat.color || "#64748b" });
+  };
+
+  const handleSave = async () => {
+    try {
+      await onUpdate(editingId, editForm);
+      setEditingId(null);
+    } catch (e) { alert("保存失败: " + e.message); }
+  };
+
+  const handleDelete = async (cat) => {
+    if (!confirm(`确定删除分类「${cat.name_zh}」？关联的SKU标签也会被删除。`)) return;
+    try { await onDelete(cat.id); }
+    catch (e) { alert("删除失败: " + e.message); }
+  };
+
+  const PRESET_COLORS = [
+    "#dc2626", "#ea580c", "#d97706", "#65a30d", "#059669", "#0891b2",
+    "#2563eb", "#6366f1", "#8b5cf6", "#7c3aed", "#ec4899", "#db2777",
+    "#be123c", "#ca8a04", "#0d9488", "#16a34a", "#f59e0b", "#6d28d9",
+    "#0ea5e9", "#14b8a6", "#475569", "#64748b", "#a3a3a3",
+  ];
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 1200, display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: 60 }}>
+      <div style={{ background: "#fff", borderRadius: 12, width: 520, maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+        <div style={{ padding: "24px 28px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0f172a" }}>管理功能分类</h3>
+            <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8" }}>×</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {categories.map(cat => (
+              <div key={cat.id} style={{ padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
+                {editingId === cat.id ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input value={editForm.name_zh} onChange={e => setEditForm({ ...editForm, name_zh: e.target.value })}
+                        placeholder="中文名" style={{ flex: 1, padding: "6px 10px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 6 }} />
+                      <input value={editForm.name_en} onChange={e => setEditForm({ ...editForm, name_en: e.target.value })}
+                        placeholder="英文名" style={{ flex: 1, padding: "6px 10px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 6 }} />
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {PRESET_COLORS.map(c => (
+                        <button key={c} onClick={() => setEditForm({ ...editForm, color: c })} style={{
+                          width: 22, height: 22, borderRadius: 4, cursor: "pointer",
+                          border: editForm.color === c ? "2px solid #0f172a" : "1px solid #e2e8f0", background: c,
+                        }} />
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={handleSave} style={{ padding: "5px 14px", fontSize: 12, border: "none", borderRadius: 6, background: "#2563eb", color: "#fff", cursor: "pointer" }}>保存</button>
+                      <button onClick={() => setEditingId(null)} style={{ padding: "5px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer" }}>取消</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <Badge text={cat.name_zh} color={cat.color || "#64748b"} sub={cat.name_en} />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => startEdit(cat)} style={{
+                        padding: "4px 10px", fontSize: 11, border: "1px solid #e2e8f0", borderRadius: 6,
+                        background: "#fff", cursor: "pointer", color: "#475569",
+                      }}>编辑</button>
+                      <button onClick={() => handleDelete(cat)} style={{
+                        padding: "4px 10px", fontSize: 11, border: "1px solid #fecaca", borderRadius: 6,
+                        background: "#fff", cursor: "pointer", color: "#dc2626",
+                      }}>删除</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 详情面板 + 编辑 + 删除
 // ============================================================
 function DetailPanel({ item, suppliers, categories, lang, onClose, onSave, onDelete }) {
   const [editing, setEditing] = useState(false);
@@ -220,22 +316,19 @@ function DetailPanel({ item, suppliers, categories, lang, onClose, onSave, onDel
 
   if (!item) return null;
   const supplier = suppliers.find(s => s.id === item.supplier_id);
+  const getCatDisplay = (cat) => lang === "en" ? (cat.name_en || cat.name_zh) : cat.name_zh;
+  const getCatSub = (cat) => lang === "zh" ? cat.name_en : (lang === "en" ? cat.name_zh : null);
 
   const handleSave = async () => {
     setSaving(true);
-    try {
-      await onSave(item.id, form, selCatIds);
-      setEditing(false);
-    } catch (e) { alert("保存失败: " + e.message); }
+    try { await onSave(item.id, form, selCatIds); setEditing(false); }
+    catch (e) { alert("保存失败: " + e.message); }
     setSaving(false);
   };
 
   const toggleCat = (catId) => {
     setSelCatIds(prev => prev.includes(catId) ? prev.filter(c => c !== catId) : [...prev, catId]);
   };
-
-  const getCatDisplay = (cat) => lang === "en" ? (cat.name_en || cat.name_zh) : cat.name_zh;
-  const getCatSub = (cat) => lang === "zh" ? cat.name_en : (lang === "en" ? cat.name_zh : null);
 
   return (
     <div style={{
@@ -266,7 +359,19 @@ function DetailPanel({ item, suppliers, categories, lang, onClose, onSave, onDel
           </div>
         </div>
 
-        {/* 功能标签显示 */}
+        {/* 供应商信息 */}
+        {!editing && (
+          <div style={{ marginBottom: 16, padding: 12, background: "#f8fafc", borderRadius: 8 }}>
+            <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 6 }}>供应商信息</div>
+            <div style={{ fontSize: 13, color: "#334155" }}>
+              <div>{supplier?.contact_email || "—"}</div>
+              {supplier?.is_account_opened && <div style={{ marginTop: 4 }}>开户: {supplier.is_account_opened}</div>}
+              {supplier?.agreement_signed && <div style={{ marginTop: 4 }}>Agreement: {supplier.agreement_signed}</div>}
+            </div>
+          </div>
+        )}
+
+        {/* 功能标签 */}
         {!editing && item.category_ids?.length > 0 && (
           <div style={{ marginBottom: 20 }}>
             {item.category_ids.map(cid => {
@@ -277,7 +382,7 @@ function DetailPanel({ item, suppliers, categories, lang, onClose, onSave, onDel
           </div>
         )}
 
-        {/* 编辑模式：功能标签选择 */}
+        {/* 编辑模式：功能标签 */}
         {editing && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 8 }}>功能标签（点击切换）</div>
@@ -297,7 +402,7 @@ function DetailPanel({ item, suppliers, categories, lang, onClose, onSave, onDel
           </div>
         )}
 
-        {/* 供应商选择 */}
+        {/* 编辑模式：供应商选择 */}
         {editing && (
           <div style={{ display: "flex", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <div style={{ width: 130, flexShrink: 0, fontSize: 13, color: "#64748b", fontWeight: 500, paddingTop: 8 }}>供应商</div>
@@ -309,13 +414,13 @@ function DetailPanel({ item, suppliers, categories, lang, onClose, onSave, onDel
           </div>
         )}
 
-        {/* 字段列表 */}
+        {/* SKU字段 */}
         {SKU_FIELDS.map(({ key, label }) => (
           <div key={key} style={{ display: "flex", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <div style={{ width: 130, flexShrink: 0, fontSize: 13, color: "#64748b", fontWeight: 500, paddingTop: editing ? 8 : 0 }}>{label}</div>
             {editing ? (
               <textarea value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })}
-                rows={key === "health_canada_monograph" || key === "notes" ? 3 : 1}
+                rows={["health_canada_monograph", "notes", "npn_notes"].includes(key) ? 3 : 1}
                 style={{ flex: 1, padding: "8px 10px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 6, resize: "vertical", fontFamily: "inherit" }} />
             ) : (
               <div style={{ fontSize: 13, color: "#1e293b", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{item[key] || "—"}</div>
@@ -323,6 +428,7 @@ function DetailPanel({ item, suppliers, categories, lang, onClose, onSave, onDel
           </div>
         ))}
 
+        {/* 编辑模式按钮 */}
         {editing && (
           <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
             <button onClick={handleSave} disabled={saving} style={{
@@ -332,7 +438,7 @@ function DetailPanel({ item, suppliers, categories, lang, onClose, onSave, onDel
             <button onClick={() => setEditing(false)} style={{
               padding: "10px 20px", fontSize: 14, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", color: "#475569",
             }}>取消</button>
-            <button onClick={() => { if (confirm("确定删除？")) onDelete(item.id); }} style={{
+            <button onClick={() => { if (confirm("确定删除这条记录？")) onDelete(item.id); }} style={{
               padding: "10px 16px", fontSize: 14, border: "1px solid #fecaca", borderRadius: 8, background: "#fff", cursor: "pointer", color: "#dc2626",
             }}>删除</button>
           </div>
@@ -349,7 +455,6 @@ function AddForm({ suppliers, categories, onAdd, onClose }) {
   const [form, setForm] = useState({ supplier_id: "" });
   const [selCatIds, setSelCatIds] = useState([]);
   const [saving, setSaving] = useState(false);
-
   const toggleCat = (catId) => setSelCatIds(p => p.includes(catId) ? p.filter(c => c !== catId) : [...p, catId]);
 
   const handleSubmit = async () => {
@@ -419,12 +524,10 @@ function PasswordGate({ children }) {
   const [input, setInput] = useState("");
   const [error, setError] = useState(false);
   const PASSWORD = "ingredient2025";
-
   const handleSubmit = () => {
     if (input === PASSWORD) setLocked(false);
     else { setError(true); setTimeout(() => setError(false), 1500); }
   };
-
   if (!locked) return children;
   return (
     <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: "#0f172a", fontFamily: "'Source Han Sans SC','Noto Sans SC',-apple-system,sans-serif" }}>
@@ -458,15 +561,15 @@ export default function App() {
   const [selCatIds, setSelCatIds] = useState([]);
   const [selRegion, setSelRegion] = useState("");
   const [selNPN, setSelNPN] = useState("");
-  const [lang, setLang] = useState("zh"); // "zh" = 中文优先显示, "en" = 英文优先
+  const [lang, setLang] = useState("zh");
 
   const [detail, setDetail] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showAddCat, setShowAddCat] = useState(false);
+  const [showManageCat, setShowManageCat] = useState(false);
   const [sortCol, setSortCol] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
 
-  // ---- 加载数据 ----
   const loadData = async () => {
     try {
       setLoading(true);
@@ -476,31 +579,26 @@ export default function App() {
         supabase.from("sku_functions").select("*"),
         supabase.from("function_categories").select("*"),
       ]);
-
       setSuppliers(suppData);
       setCategories(catData);
 
       const supplierMap = {};
       suppData.forEach(s => { supplierMap[s.id] = s; });
 
-      const catMap = {};
-      catData.forEach(c => { catMap[c.id] = c; });
-
-      // 每个 SKU 的 category_id 列表
       const skuCatMap = {};
       funcData.forEach(f => {
         if (!skuCatMap[f.sku_id]) skuCatMap[f.sku_id] = [];
         skuCatMap[f.sku_id].push(f.category_id);
       });
 
-      const merged = skuData.map(sku => ({
+      setData(skuData.map(sku => ({
         ...sku,
         supplier_name: supplierMap[sku.supplier_id]?.supplier_name || "—",
         contact_email: supplierMap[sku.supplier_id]?.contact_email || "",
+        is_account_opened: supplierMap[sku.supplier_id]?.is_account_opened || "",
+        agreement_signed: supplierMap[sku.supplier_id]?.agreement_signed || "",
         category_ids: skuCatMap[sku.id] || [],
-      }));
-
-      setData(merged);
+      })));
       setError(null);
     } catch (e) { setError(e.message); }
     setLoading(false);
@@ -508,20 +606,18 @@ export default function App() {
 
   useEffect(() => { loadData(); }, []);
 
-  // ---- 筛选 ----
   const regions = useMemo(() => [...new Set(data.map(r => r.region).filter(Boolean))].sort(), [data]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     return data.filter(r => {
       if (q) {
-        // 搜索时也匹配分类名
         const catNames = (r.category_ids || []).map(cid => {
           const cat = categories.find(c => c.id === cid);
           return cat ? `${cat.name_zh} ${cat.name_en || ""}` : "";
         }).join(" ");
         const h = [r.supplier_name, r.product_name, r.ingredient, r.region,
-          r.form_potency, r.notes, r.certificates, catNames]
+          r.form_potency, r.notes, r.certificates, r.contact_email, catNames]
           .filter(Boolean).join(" ").toLowerCase();
         if (!h.includes(q)) return false;
       }
@@ -542,7 +638,7 @@ export default function App() {
     });
   }, [filtered, sortCol, sortDir]);
 
-  // ---- CRUD ----
+  // CRUD
   const handleSave = async (skuId, formData, catIds) => {
     const skuUpdate = {};
     SKU_FIELDS.forEach(({ key }) => { skuUpdate[key] = formData[key] || null; });
@@ -566,7 +662,7 @@ export default function App() {
     await loadData();
   };
 
-  const handleDelete = async (skuId) => {
+  const handleDeleteSku = async (skuId) => {
     await supabase.from("skus").delete(skuId);
     setDetail(null);
     await loadData();
@@ -577,13 +673,24 @@ export default function App() {
     await loadData();
   };
 
+  const handleUpdateCategory = async (catId, catData) => {
+    await supabase.from("function_categories").update(catId, catData);
+    await loadData();
+  };
+
+  const handleDeleteCategory = async (catId) => {
+    // 先删关联，再删分类
+    await supabase.from("sku_functions").deleteWhere("category_id", catId);
+    await supabase.from("function_categories").delete(catId);
+    await loadData();
+  };
+
   const toggleCat = (catId) => setSelCatIds(p => p.includes(catId) ? p.filter(c => c !== catId) : [...p, catId]);
   const handleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortCol(col); setSortDir("asc"); }
   };
   const clearAll = () => { setSearch(""); setSelCatIds([]); setSelRegion(""); setSelNPN(""); };
-
   const getCatDisplay = (cat) => lang === "en" ? (cat.name_en || cat.name_zh) : cat.name_zh;
   const getCatSub = (cat) => lang === "zh" ? cat.name_en : (lang === "en" ? cat.name_zh : null);
 
@@ -599,11 +706,14 @@ export default function App() {
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {/* 中英切换 */}
             <button onClick={() => setLang(l => l === "zh" ? "en" : "zh")} style={{
               padding: "8px 14px", fontSize: 12, fontWeight: 600, border: "1px solid #334155", borderRadius: 8,
               background: "transparent", color: "#94a3b8", cursor: "pointer",
             }}>{lang === "zh" ? "EN" : "中"}</button>
+            <button onClick={() => setShowManageCat(true)} style={{
+              padding: "8px 14px", fontSize: 12, fontWeight: 500, border: "1px solid #334155", borderRadius: 8,
+              background: "transparent", color: "#94a3b8", cursor: "pointer",
+            }}>管理分类</button>
             <button onClick={() => setShowAdd(true)} style={{
               padding: "8px 16px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 8,
               background: "#3b82f6", color: "#fff", cursor: "pointer",
@@ -636,7 +746,6 @@ export default function App() {
               }}>清除筛选</button>
             )}
           </div>
-          {/* 功能分类标签 - 从数据库动态读取 */}
           <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
             {categories.map(cat => {
               const active = selCatIds.includes(cat.id);
@@ -661,7 +770,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Results */}
         <div style={{ padding: "12px 28px", fontSize: 13, color: "#64748b" }}>
           找到 <strong style={{ color: "#0f172a" }}>{sorted.length}</strong> 条结果
         </div>
@@ -673,14 +781,14 @@ export default function App() {
           </div>
         ) : (
           <div style={{ padding: "0 28px 40px", overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <table style={{ borderCollapse: "collapse", fontSize: 13, whiteSpace: "nowrap" }}>
               <thead>
                 <tr>
                   {TABLE_COLS.map(col => (
                     <th key={col.key} onClick={() => handleSort(col.key)} style={{
                       padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#475569",
                       borderBottom: "2px solid #e2e8f0", cursor: "pointer", userSelect: "none",
-                      whiteSpace: "nowrap", fontSize: 12, position: "sticky", top: 0, background: "#f8fafc", minWidth: col.w,
+                      fontSize: 12, position: "sticky", top: 0, background: "#f8fafc", minWidth: col.w,
                     }}>{col.label}{sortCol === col.key && (sortDir === "asc" ? " ↑" : " ↓")}</th>
                   ))}
                 </tr>
@@ -695,8 +803,10 @@ export default function App() {
                     onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#fafbfc"}>
                     {TABLE_COLS.map(col => (
                       <td key={col.key} style={{
-                        padding: "10px 12px", color: "#334155", maxWidth: col.w, overflow: "hidden",
-                        textOverflow: "ellipsis", whiteSpace: col.key === "functions" ? "normal" : "nowrap", lineHeight: 1.4,
+                        padding: "10px 12px", color: "#334155",
+                        maxWidth: col.key === "functions" ? 300 : 200,
+                        overflow: "hidden", textOverflow: "ellipsis",
+                        whiteSpace: col.key === "functions" ? "normal" : "nowrap",
                       }}>
                         {col.key === "functions"
                           ? (r.category_ids || []).map(cid => {
@@ -715,20 +825,16 @@ export default function App() {
           </div>
         )}
 
-        {/* Detail panel */}
         {detail && (
           <>
             <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.2)", zIndex: 999 }} />
             <DetailPanel item={detail} suppliers={suppliers} categories={categories} lang={lang}
-              onClose={() => setDetail(null)} onSave={handleSave} onDelete={handleDelete} />
+              onClose={() => setDetail(null)} onSave={handleSave} onDelete={handleDeleteSku} />
           </>
         )}
-
-        {/* Add SKU form */}
         {showAdd && <AddForm suppliers={suppliers} categories={categories} onAdd={handleAdd} onClose={() => setShowAdd(false)} />}
-
-        {/* Add category form */}
         {showAddCat && <AddCategoryForm onAdd={handleAddCategory} onClose={() => setShowAddCat(false)} />}
+        {showManageCat && <ManageCategoriesForm categories={categories} onUpdate={handleUpdateCategory} onDelete={handleDeleteCategory} onClose={() => setShowManageCat(false)} />}
       </div>
     </PasswordGate>
   );
