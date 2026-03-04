@@ -1032,31 +1032,30 @@ export default function App() {
               <thead>
                 <tr>
                   {TABLE_COLS.map(col => (
-                    <th key={col.key} style={{
+                    <th key={col.key} onClick={() => handleSort(col.key)} style={{
                       padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#475569",
-                      borderBottom: "2px solid #e2e8f0", userSelect: "none",
+                      borderBottom: "2px solid #e2e8f0", cursor: "pointer", userSelect: "none",
                       fontSize: 12, position: "sticky", top: 0, background: "#f8fafc",
-                      width: colWidths[col.key], minWidth: 40, whiteSpace: "nowrap",
+                      minWidth: col.key === "is_account_opened" ? openedColW : col.w,
+                      width: col.key === "is_account_opened" ? openedColW : undefined,
+                      whiteSpace: "nowrap",
                     }}>
                       <div style={{ display: "flex", alignItems: "center" }}>
-                        <span onClick={() => handleSort(col.key)} style={{ cursor: "pointer", flex: 1 }}>
-                          {col.label}{sortCol === col.key && (sortDir === "asc" ? " ↑" : " ↓")}
-                        </span>
-                        <div
-                          onMouseDown={e => {
-                            e.preventDefault();
-                            const startX = e.clientX;
-                            const startW = colWidths[col.key];
-                            const onMove = ev => {
-                              const diff = ev.clientX - startX;
-                              setColWidths(prev => ({ ...prev, [col.key]: Math.max(40, startW + diff) }));
-                            };
-                            const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
-                            document.addEventListener("mousemove", onMove);
-                            document.addEventListener("mouseup", onUp);
-                          }}
-                          style={{ width: 6, cursor: "col-resize", height: 20, marginLeft: 4, borderRight: "2px solid #cbd5e1" }}
-                        />
+                        <span style={{ flex: 1 }}>{col.label}{sortCol === col.key && (sortDir === "asc" ? " ↑" : " ↓")}</span>
+                        {col.key === "is_account_opened" && (
+                          <div
+                            onMouseDown={e => {
+                              e.preventDefault(); e.stopPropagation();
+                              const startX = e.clientX;
+                              const startW = openedColW;
+                              const onMove = ev => setOpenedColW(Math.max(40, startW + ev.clientX - startX));
+                              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+                              document.addEventListener("mousemove", onMove);
+                              document.addEventListener("mouseup", onUp);
+                            }}
+                            style={{ width: 6, cursor: "col-resize", height: 20, marginLeft: 4, borderRight: "2px solid #cbd5e1" }}
+                          />
+                        )}
                       </div>
                     </th>
                   ))}
@@ -1073,7 +1072,7 @@ export default function App() {
                     {TABLE_COLS.map(col => (
                       <td key={col.key} style={{
                         padding: "10px 12px", color: "#334155",
-                        maxWidth: expanded ? "none" : (col.key === "functions" ? 300 : colWidths[col.key]),
+                        maxWidth: expanded ? "none" : (col.key === "functions" ? 300 : 200),
                         overflow: expanded ? "visible" : "hidden",
                         textOverflow: expanded ? "unset" : "ellipsis",
                         whiteSpace: expanded ? "pre-wrap" : (col.key === "functions" ? "normal" : "nowrap"),
