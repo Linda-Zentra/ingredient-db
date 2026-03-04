@@ -721,12 +721,12 @@ function AddForm({ suppliers, categories, onAdd, onClose }) {
 // 密码锁
 // ============================================================
 function PasswordGate({ children }) {
-  const [locked, setLocked] = useState(true);
+  const [locked, setLocked] = useState(() => sessionStorage.getItem('authed') !== 'yes');
   const [input, setInput] = useState("");
   const [error, setError] = useState(false);
-  const PASSWORD = "ingredient2025";
+  const PASSWORD = "ingredient2026";
   const handleSubmit = () => {
-    if (input === PASSWORD) setLocked(false);
+    if (input === PASSWORD) { sessionStorage.setItem('authed', 'yes'); setLocked(false); }
     else { setError(true); setTimeout(() => setError(false), 1500); }
   };
   if (!locked) return children;
@@ -771,6 +771,13 @@ export default function App() {
   const [showManageSupplier, setShowManageSupplier] = useState(false);
   const [sortCol, setSortCol] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
+  const [fontSize, setFontSize] = useState(13);
+  const [expanded, setExpanded] = useState(false);
+  const [colWidths, setColWidths] = useState(() => {
+    const w = {};
+    TABLE_COLS.forEach(c => { w[c.key] = c.w; });
+    return w;
+  });
 
   const loadData = async () => {
     try {
@@ -920,7 +927,7 @@ export default function App() {
 
   return (
     <PasswordGate>
-      <div style={{ fontFamily: "'Source Han Sans SC','Noto Sans SC',-apple-system,sans-serif", background: "#f8fafc", minHeight: "100vh" }}>
+      <div style={{ fontFamily: "'Source Han Sans SC','Noto Sans SC',-apple-system,sans-serif", background: "#f8fafc", minHeight: "100vh", zoom: fontSize / 13 }}>
         {/* Header */}
         <div style={{ background: "#0f172a", padding: "20px 28px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
@@ -930,6 +937,17 @@ export default function App() {
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <button onClick={() => setFontSize(s => Math.max(10, s - 1))} style={{
+                width: 28, height: 28, border: "1px solid #334155", borderRadius: 6,
+                background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 14,
+              }}>-</button>
+              <span style={{ color: "#94a3b8", fontSize: 11, minWidth: 20, textAlign: "center" }}>{fontSize}</span>
+              <button onClick={() => setFontSize(s => Math.min(20, s + 1))} style={{
+                width: 28, height: 28, border: "1px solid #334155", borderRadius: 6,
+                background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 14,
+              }}>+</button>
+            </div>
             <button onClick={() => setLang(l => l === "zh" ? "en" : "zh")} style={{
               padding: "8px 14px", fontSize: 12, fontWeight: 600, border: "1px solid #334155", borderRadius: 8,
               background: "transparent", color: "#94a3b8", cursor: "pointer",
@@ -1000,6 +1018,10 @@ export default function App() {
 
         <div style={{ padding: "12px 28px", fontSize: 13, color: "#64748b" }}>
           找到 <strong style={{ color: "#0f172a" }}>{sorted.length}</strong> 条结果
+          <button onClick={() => setExpanded(e => !e)} style={{
+            marginLeft: 12, padding: "4px 12px", fontSize: 12, border: "1px solid #e2e8f0",
+            borderRadius: 6, background: "#fff", cursor: "pointer", color: "#475569",
+          }}>{expanded ? "收起" : "展开全部"}</button>
         </div>
 
         {loading ? <Loading /> : error ? (
@@ -1013,11 +1035,33 @@ export default function App() {
               <thead>
                 <tr>
                   {TABLE_COLS.map(col => (
-                    <th key={col.key} onClick={() => handleSort(col.key)} style={{
+                    <th key={col.key} style={{
                       padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#475569",
-                      borderBottom: "2px solid #e2e8f0", cursor: "pointer", userSelect: "none",
-                      fontSize: 12, position: "sticky", top: 0, background: "#f8fafc", minWidth: col.w,
-                    }}>{col.label}{sortCol === col.key && (sortDir === "asc" ? " ↑" : " ↓")}</th>
+                      borderBottom: "2px solid #e2e8f0", userSelect: "none",
+                      fontSize: 12, position: "sticky", top: 0, background: "#f8fafc",
+                      width: colWidths[col.key], minWidth: 40, whiteSpace: "nowrap",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center" }}>
+                        <span onClick={() => handleSort(col.key)} style={{ cursor: "pointer", flex: 1 }}>
+                          {col.label}{sortCol === col.key && (sortDir === "asc" ? " ↑" : " ↓")}
+                        </span>
+                        <div
+                          onMouseDown={e => {
+                            e.preventDefault();
+                            const startX = e.clientX;
+                            const startW = colWidths[col.key];
+                            const onMove = ev => {
+                              const diff = ev.clientX - startX;
+                              setColWidths(prev => ({ ...prev, [col.key]: Math.max(40, startW + diff) }));
+                            };
+                            const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+                            document.addEventListener("mousemove", onMove);
+                            document.addEventListener("mouseup", onUp);
+                          }}
+                          style={{ width: 6, cursor: "col-resize", height: 20, marginLeft: 4, borderRight: "2px solid #cbd5e1" }}
+                        />
+                      </div>
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -1032,9 +1076,11 @@ export default function App() {
                     {TABLE_COLS.map(col => (
                       <td key={col.key} style={{
                         padding: "10px 12px", color: "#334155",
-                        maxWidth: col.key === "functions" ? 300 : 200,
-                        overflow: "hidden", textOverflow: "ellipsis",
-                        whiteSpace: col.key === "functions" ? "normal" : "nowrap",
+                        maxWidth: expanded ? "none" : (col.key === "functions" ? 300 : colWidths[col.key]),
+                        overflow: expanded ? "visible" : "hidden",
+                        textOverflow: expanded ? "unset" : "ellipsis",
+                        whiteSpace: expanded ? "pre-wrap" : (col.key === "functions" ? "normal" : "nowrap"),
+                        background: col.key === "price_usd_kg" ? "#f0fdf4" : undefined,
                       }}>
                         {col.key === "functions"
                           ? (r.category_ids || []).map(cid => {
