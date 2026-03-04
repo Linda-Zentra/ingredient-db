@@ -721,12 +721,12 @@ function AddForm({ suppliers, categories, onAdd, onClose }) {
 // 密码锁
 // ============================================================
 function PasswordGate({ children }) {
-  const [locked, setLocked] = useState(() => sessionStorage.getItem('authed') !== 'yes');
+  const [locked, setLocked] = useState(() => sessionStorage.getItem("authed") !== "yes");
   const [input, setInput] = useState("");
   const [error, setError] = useState(false);
   const PASSWORD = "ingredient2026";
   const handleSubmit = () => {
-    if (input === PASSWORD) { sessionStorage.setItem('authed', 'yes'); setLocked(false); }
+    if (input === PASSWORD) { sessionStorage.setItem("authed", "yes"); setLocked(false); }
     else { setError(true); setTimeout(() => setError(false), 1500); }
   };
   if (!locked) return children;
@@ -773,11 +773,7 @@ export default function App() {
   const [sortDir, setSortDir] = useState("asc");
   const [fontSize, setFontSize] = useState(13);
   const [expanded, setExpanded] = useState(false);
-  const [colWidths, setColWidths] = useState(() => {
-    const w = {};
-    TABLE_COLS.forEach(c => { w[c.key] = c.w; });
-    return w;
-  });
+  const [openedColW, setOpenedColW] = useState(80);
 
   const loadData = async () => {
     try {
@@ -814,6 +810,7 @@ export default function App() {
   };
 
   useEffect(() => { loadData(); }, []);
+  useEffect(() => { const timer = setInterval(loadData, 300000); return () => clearInterval(timer); }, []);
 
   const regions = useMemo(() => [...new Set(data.map(r => r.region).filter(Boolean))].sort(), [data]);
 
