@@ -337,7 +337,7 @@ function ProductForm({ product, brands, skus, onSave, onClose }) {
               <input type="checkbox" id="is_listed" checked={form.is_listed} onChange={e => f("is_listed", e.target.checked)} />
               <label htmlFor="is_listed" style={{ fontSize: 13, color: "#475569", cursor: "pointer" }}>已上架</label>
             </div>
-
+          </div>
             {/* 备注 */}
             <div>
               <label style={labelStyle}>备注</label>
