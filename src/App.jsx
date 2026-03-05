@@ -254,7 +254,7 @@ function ProductForm({ product, brands, skus, onSave, onClose }) {
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async () => {
-    if (!form.product_name.trim()) { alert("请填写产品名称"); return; }
+    if (!form.product_name_en?.trim()) { alert("请填写英文产品名称"); return; }
     setSaving(true);
     try { await onSave(isEdit ? product.id : null, form, ingredients); onClose(); }
     catch (e) { alert("保存失败: " + e.message); }
@@ -275,14 +275,20 @@ function ProductForm({ product, brands, skus, onSave, onClose }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {/* 名称 */}
             <div>
-              <label style={labelStyle}>产品名称（中文）*</label>
+              <label style={labelStyle}>Product Name (English) *</label>
+              <input value={form.product_name_en} onChange={e => f("product_name_en", e.target.value)}
+                style={inputStyle} placeholder="e.g. Youth Greeting Capsule" />
+            </div>
+            <div>
+              <label style={labelStyle}>产品名称（中文）</label>
               <input value={form.product_name} onChange={e => f("product_name", e.target.value)}
                 style={inputStyle} placeholder="如：青春有你胶囊" />
             </div>
+
+            {/* 配方前置：先选品牌和ingredients */}
             <div>
-              <label style={labelStyle}>Product Name (English)</label>
-              <input value={form.product_name_en} onChange={e => f("product_name_en", e.target.value)}
-                style={inputStyle} placeholder="e.g. Youth Greeting Capsule" />
+              <label style={labelStyle}>配方 Ingredients</label>
+              <IngredientPicker skus={skus} selected={ingredients} onChange={setIngredients} />
             </div>
 
             {/* 品牌 */}
