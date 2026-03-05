@@ -484,27 +484,6 @@ function DetailPanel({ item, suppliers, categories, lang, onClose, onSave, onDel
   };
 
 
-  const handleAddSupplier = async (data) => {
-    await supabase.from("suppliers").insert(data);
-    await loadData();
-  };
-
-  const handleUpdateSupplier = async (id, data) => {
-    await supabase.from("suppliers").update(id, data);
-    await loadData();
-  };
-
-  const handleDeleteSupplier = async (id) => {
-    // 先删该供应商下的所有SKU关联的functions
-    const skusOfSupplier = data.filter(s => s.supplier_id === id);
-    for (const sku of skusOfSupplier) {
-      await supabase.from("sku_functions").deleteWhere("sku_id", sku.id);
-      await supabase.from("skus").delete(sku.id);
-    }
-    await supabase.from("suppliers").delete(id);
-    await loadData();
-  };
-
   const toggleCat = (catId) => {
     setSelCatIds(prev => prev.includes(catId) ? prev.filter(c => c !== catId) : [...prev, catId]);
   };
@@ -634,27 +613,6 @@ function AddForm({ suppliers, categories, onAdd, onClose }) {
   const [form, setForm] = useState({ supplier_id: "" });
   const [selCatIds, setSelCatIds] = useState([]);
   const [saving, setSaving] = useState(false);
-
-  const handleAddSupplier = async (data) => {
-    await supabase.from("suppliers").insert(data);
-    await loadData();
-  };
-
-  const handleUpdateSupplier = async (id, data) => {
-    await supabase.from("suppliers").update(id, data);
-    await loadData();
-  };
-
-  const handleDeleteSupplier = async (id) => {
-    // 先删该供应商下的所有SKU关联的functions
-    const skusOfSupplier = data.filter(s => s.supplier_id === id);
-    for (const sku of skusOfSupplier) {
-      await supabase.from("sku_functions").deleteWhere("sku_id", sku.id);
-      await supabase.from("skus").delete(sku.id);
-    }
-    await supabase.from("suppliers").delete(id);
-    await loadData();
-  };
 
   const toggleCat = (catId) => setSelCatIds(p => p.includes(catId) ? p.filter(c => c !== catId) : [...p, catId]);
 
