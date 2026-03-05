@@ -924,7 +924,7 @@ export default function App() {
 
   return (
     <PasswordGate>
-      <div style={{ fontFamily: "'Source Han Sans SC','Noto Sans SC',-apple-system,sans-serif", background: "#f8fafc", minHeight: "100vh", zoom: fontSize / 13 }}>
+      <div style={{ fontFamily: "'Source Han Sans SC','Noto Sans SC',-apple-system,sans-serif", background: "#f8fafc", minHeight: "100vh" }}>
         {/* Header */}
         <div style={{ background: "#0f172a", padding: "20px 28px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
@@ -1027,7 +1027,7 @@ export default function App() {
             <button onClick={loadData} style={{ marginTop: 12, padding: "8px 16px", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer" }}>重试</button>
           </div>
         ) : (
-          <div style={{ padding: "0 28px 40px", overflowX: "auto" }}>
+          <div style={{ padding: "0 28px 40px", overflowX: "auto", overflowY: "auto", maxHeight: "calc(100vh - 250px)", zoom: fontSize / 13 }}>
             <table style={{ borderCollapse: "collapse", fontSize: 13, whiteSpace: "nowrap" }}>
               <thead>
                 <tr>
@@ -1035,7 +1035,7 @@ export default function App() {
                     <th key={col.key} onClick={() => handleSort(col.key)} style={{
                       padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#475569",
                       borderBottom: "2px solid #e2e8f0", cursor: "pointer", userSelect: "none",
-                      fontSize: 12, position: "sticky", top: 0, background: "#f8fafc",
+                      fontSize: 12, position: "sticky", top: 0, background: "#f8fafc", zIndex: 10,
                       minWidth: col.key === "is_account_opened" ? openedColW : col.w,
                       width: col.key === "is_account_opened" ? openedColW : undefined,
                       whiteSpace: "nowrap",
