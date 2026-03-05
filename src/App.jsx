@@ -345,13 +345,6 @@ function ProductForm({ product, brands, skus, onSave, onClose }) {
                 style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
             </div>
 
-            {/* 配方 */}
-            <div>
-              <label style={labelStyle}>配方 Ingredients</label>
-              <IngredientPicker skus={skus} selected={ingredients} onChange={setIngredients} />
-            </div>
-          </div>
-
           <button onClick={handleSubmit} disabled={saving} style={{
             width: "100%", padding: 12, fontSize: 14, fontWeight: 600, border: "none", borderRadius: 8,
             background: "#2563eb", color: "#fff", cursor: saving ? "wait" : "pointer", marginTop: 20,
