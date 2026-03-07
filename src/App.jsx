@@ -94,6 +94,20 @@ function Loading() {
     </div>
   );
 }
+
+function Badge({ text, color, sub }) {
+  return (
+    <span style={{
+      display: "inline-flex", flexDirection: "column", alignItems: "center",
+      padding: sub ? "3px 10px 2px" : "2px 8px", borderRadius: 9999,
+      fontSize: 11, fontWeight: 500, marginRight: 4, marginBottom: 2,
+      background: color + "18", color, border: `1px solid ${color}40`, whiteSpace: "nowrap", lineHeight: 1.3,
+    }}>
+      <span>{text}</span>
+      {sub && <span style={{ fontSize: 9, opacity: 0.7 }}>{sub}</span>}
+    </span>
+  );
+}
 // ============================================================
 // STATUS CONFIG — 替换掉原来的 STATUS_CONFIG 常量
 // ============================================================
@@ -105,6 +119,19 @@ const STATUS_CONFIG = {
     expired:     { label: "Expired", color: "#ef4444" },
   },
 };
+
+function StatusBadge({ type, value }) {
+  const cfg = STATUS_CONFIG[type]?.[value] || { label: value || "—", color: "#94a3b8" };
+  return (
+    <span style={{
+      padding: "2px 8px", borderRadius: 9999, fontSize: 11, fontWeight: 500,
+      background: cfg.color + "18", color: cfg.color, border: `1px solid ${cfg.color}40`,
+    }}>{cfg.label}</span>
+  );
+}
+
+const labelStyle = { fontSize: 12, color: "#64748b", fontWeight: 500, display: "block", marginBottom: 4 };
+const inputStyle = { width: "100%", padding: "8px 10px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 6, boxSizing: "border-box", fontFamily: "inherit" };
 
 // ============================================================
 // 品牌名显示逻辑
