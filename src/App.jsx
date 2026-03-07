@@ -86,7 +86,14 @@ const TABLE_COLS = [
   { key: "applicable_population", label: "人群", w: 60 }, { key: "notes", label: "备注", w: 120 },
   { key: "certificates", label: "Certificates", w: 120 },
 ];
-
+function Loading() {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
+      <div style={{ width: 32, height: 32, border: "3px solid #e2e8f0", borderTopColor: "#3b82f6", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
 // ============================================================
 // STATUS CONFIG — 替换掉原来的 STATUS_CONFIG 常量
 // ============================================================
