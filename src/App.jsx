@@ -87,352 +87,289 @@ const TABLE_COLS = [
   { key: "certificates", label: "Certificates", w: 120 },
 ];
 
+// ============================================================
+// STATUS CONFIG — 替换掉原来的 STATUS_CONFIG 常量
+// ============================================================
 const STATUS_CONFIG = {
-  production: {
-    not_started: { label: "未开始", color: "#94a3b8" },
-    in_production: { label: "生产中", color: "#f59e0b" },
-    completed:    { label: "已完成", color: "#22c55e" },
-  },
-  approval: {
-    pending:  { label: "待审批", color: "#f59e0b" },
-    approved: { label: "已审批", color: "#22c55e" },
-    rejected: { label: "已拒绝", color: "#ef4444" },
+  licensing: {
+    not_started: { label: "未申请", color: "#94a3b8" },
+    pending:     { label: "Pending", color: "#f59e0b" },
+    active:      { label: "Active",  color: "#22c55e" },
+    expired:     { label: "Expired", color: "#ef4444" },
   },
 };
 
 // ============================================================
-// 通用小组件
+// 品牌名显示逻辑
 // ============================================================
-function Badge({ text, color, sub }) {
-  return (
-    <span style={{
-      display: "inline-flex", flexDirection: "column", alignItems: "center",
-      padding: sub ? "3px 10px 2px" : "2px 8px", borderRadius: 9999,
-      fontSize: 11, fontWeight: 500, marginRight: 4, marginBottom: 2,
-      background: color + "18", color, border: `1px solid ${color}40`, whiteSpace: "nowrap", lineHeight: 1.3,
-    }}>
-      <span>{text}</span>
-      {sub && <span style={{ fontSize: 9, opacity: 0.7 }}>{sub}</span>}
-    </span>
-  );
-}
-
-function StatusBadge({ type, value }) {
-  const cfg = STATUS_CONFIG[type]?.[value] || { label: value || "—", color: "#94a3b8" };
-  return (
-    <span style={{
-      padding: "2px 8px", borderRadius: 9999, fontSize: 11, fontWeight: 500,
-      background: cfg.color + "18", color: cfg.color, border: `1px solid ${cfg.color}40`,
-    }}>{cfg.label}</span>
-  );
-}
-
-function Loading() {
-  return (
-    <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
-      <div style={{ width: 32, height: 32, border: "3px solid #e2e8f0", borderTopColor: "#3b82f6", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  );
+function getDisplayName(product, productBrands, brands) {
+  if (!productBrands?.length) return product.product_name || "—";
+  const brandMap = {};
+  brands.forEach(b => { brandMap[b.id] = b.name; });
+  const zentra = productBrands.find(pb => brandMap[pb.brand_id] === "Zentra");
+  if (zentra) return zentra.brand_name || product.product_name;
+  const zensta = productBrands.find(pb => brandMap[pb.brand_id] === "Zensta");
+  if (zensta) return zensta.brand_name || product.product_name;
+  return product.product_name || "—";
 }
 
 // ============================================================
-// IngredientPicker — 搜索变tag
+// MedicinalRow — 详情/编辑里一行 medicinal ingredient
 // ============================================================
-function IngredientPicker({ skus, selected, onChange }) {
-  const [input, setInput] = useState("");
+function MedicinalRow({ item, skus, onUpdateSku, onDelete, editing }) {
   const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
   const ref = useRef(null);
 
-  // 点击外部关闭dropdown
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
   }, []);
+
+  const matched = skus.find(s => s.id === item.sku_id);
 
   const suggestions = useMemo(() => {
     if (!input.trim()) return [];
     const q = input.toLowerCase();
-    return skus
-      .filter(s => !selected.find(sel => sel.sku_id === s.id))
-      .filter(s =>
-        s.product_name?.toLowerCase().includes(q) ||
-        s.ingredient?.toLowerCase().includes(q)
-      )
-      .slice(0, 10);
-  }, [input, skus, selected]);
-
-  const add = (sku) => {
-    onChange([...selected, { sku_id: sku.id, product_name: sku.product_name, ingredient: sku.ingredient, dosage: "", notes: "" }]);
-    setInput("");
-    setOpen(false);
-  };
-
-  const remove = (skuId) => onChange(selected.filter(s => s.sku_id !== skuId));
-
-  const updateField = (skuId, field, val) =>
-    onChange(selected.map(s => s.sku_id === skuId ? { ...s, [field]: val } : s));
+    return skus.filter(s =>
+      s.ingredient_name?.toLowerCase().includes(q) ||
+      s.ingredient?.toLowerCase().includes(q)
+    ).slice(0, 8);
+  }, [input, skus]);
 
   return (
-    <div ref={ref}>
-      {/* 已选tags */}
-      {selected.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-          {selected.map(s => (
-            <div key={s.sku_id} style={{
-              display: "flex", alignItems: "center", gap: 4,
-              background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "4px 8px",
-            }}>
-              <div style={{ fontSize: 12, color: "#1e40af", fontWeight: 500 }}>
-                {s.product_name || s.ingredient || "—"}
-              </div>
-              <input
-                value={s.dosage}
-                onChange={e => updateField(s.sku_id, "dosage", e.target.value)}
-                placeholder="用量"
-                style={{ width: 70, fontSize: 11, border: "1px solid #bfdbfe", borderRadius: 4, padding: "2px 4px", background: "#fff" }}
-              />
-              <button onClick={() => remove(s.sku_id)} style={{
-                background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, lineHeight: 1, padding: 0,
-              }}>×</button>
-            </div>
-          ))}
-        </div>
-      )}
-      {/* 搜索框 */}
-      <div style={{ position: "relative" }}>
-        <input
-          value={input}
-          onChange={e => { setInput(e.target.value); setOpen(true); }}
-          onFocus={() => input && setOpen(true)}
-          placeholder="搜索成分或品名添加..."
-          style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 6, boxSizing: "border-box", outline: "none" }}
-        />
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>{item.common_name}</div>
+        {item.amount && <div style={{ fontSize: 11, color: "#64748b" }}>{item.amount}</div>}
+      </div>
+      <div ref={ref} style={{ position: "relative", width: 190 }}>
+        {matched ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "4px 8px" }}>
+            <div style={{ flex: 1, fontSize: 11, color: "#1e40af", fontWeight: 500 }}>{matched.ingredient_name || matched.ingredient || "—"}</div>
+            {editing && <button onClick={() => onUpdateSku(item.id, null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 13, padding: 0 }}>×</button>}
+          </div>
+        ) : (
+          <input value={input} onChange={e => { setInput(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+            placeholder="关联 SKU..." disabled={!editing}
+            style={{ width: "100%", padding: "4px 8px", fontSize: 11, border: "1px solid #e2e8f0", borderRadius: 6, boxSizing: "border-box", outline: "none", background: editing ? "#fff" : "#f8fafc" }} />
+        )}
         {open && suggestions.length > 0 && (
-          <div style={{
-            position: "absolute", top: "100%", left: 0, right: 0, background: "#fff",
-            border: "1px solid #e2e8f0", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
-            zIndex: 500, maxHeight: 240, overflowY: "auto",
-          }}>
+          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.1)", zIndex: 600, maxHeight: 200, overflowY: "auto" }}>
             {suggestions.map(s => (
-              <div key={s.id} onClick={() => add(s)} style={{
-                padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #f1f5f9",
-                fontSize: 13,
-              }}
+              <div key={s.id} onClick={() => { onUpdateSku(item.id, s.id); setInput(""); setOpen(false); }}
+                style={{ padding: "6px 10px", cursor: "pointer", fontSize: 12, borderBottom: "1px solid #f1f5f9" }}
                 onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
-                onMouseLeave={e => e.currentTarget.style.background = "#fff"}
-              >
-                <div style={{ fontWeight: 500, color: "#0f172a" }}>{s.product_name || "—"}</div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>{s.ingredient || "—"}</div>
+                onMouseLeave={e => e.currentTarget.style.background = "#fff"}>
+                <div style={{ fontWeight: 500, color: "#0f172a" }}>{s.ingredient_name || "—"}</div>
+                <div style={{ color: "#64748b", fontSize: 11 }}>{s.ingredient || "—"}</div>
               </div>
             ))}
           </div>
         )}
       </div>
+      {editing && (
+        <button onClick={() => onDelete(item.id)}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", fontSize: 16, padding: "0 2px", lineHeight: 1 }}
+          onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+          onMouseLeave={e => e.currentTarget.style.color = "#cbd5e1"}>×</button>
+      )}
     </div>
   );
 }
 
 // ============================================================
-// ProductForm — 新增/编辑产品弹窗
+// ProductForm — 新增 + 编辑同一个表单（右侧面板）
 // ============================================================
-function ProductForm({ product, brands, skus, onSave, onClose }) {
+function ProductForm({ product, brands, skus, allExcipients, onSave, onDelete, onClose }) {
   const isEdit = !!product;
+  const defaultBrand = brands.find(b => b.is_default);
+
   const [form, setForm] = useState({
-    product_name: product?.product_name || "",
-    product_name_en: product?.product_name_en || "",
-    brand_id: product?.brand_id || "",
-    production_status: product?.production_status || "not_started",
-    approval_status: product?.approval_status || "pending",
-    is_listed: product?.is_listed || false,
-    notes: product?.notes || "",
-    price_cad: product?.price_cad || "",
-    price_usd: product?.price_usd || "",
+    product_name:      product?.product_name    || "",
+    product_name_zh:   product?.product_name_zh || "",
+    primary_brand_id:  product?.primary_brand_id || defaultBrand?.id || "",
+    npn:               product?.npn              || "",
+    licensing_status:  product?.licensing_status || "not_started",
+    is_marketed:       product?.is_marketed      || false,
+    dosage_form:       product?.dosage_form       || "",
+    recommended_dose:  product?.recommended_dose  || "",
+    price_cad:         product?.price_cad         || "",
+    price_usd:         product?.price_usd         || "",
+    notes:             product?.notes             || "",
   });
-  const [ingredients, setIngredients] = useState(product?.ingredients || []);
+
+  // medicinal: [{id, common_name, amount, sku_id}] — edit时从product来，新增时空
+  const [medicinal, setMedicinal] = useState(product?.medicinal || []);
+  // excipients: [{id(pe_id), excipient_id, name}]
+  const [excipients, setExcipients] = useState(product?.excipients || []);
+  // 新增common行
+  const [newCommon, setNewCommon] = useState("");
+  const [newExcipient, setNewExcipient] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const handleAddCommon = () => {
+    if (!newCommon.trim()) return;
+    setMedicinal(m => [...m, { id: `new-${Date.now()}`, common_name: newCommon.trim(), amount: "", sku_id: null, isNew: true }]);
+    setNewCommon("");
+  };
+
+  const handleDeleteCommon = (id) => setMedicinal(m => m.filter(r => r.id !== id));
+
+  const handleUpdateSku = (id, skuId) => setMedicinal(m => m.map(r => r.id === id ? { ...r, sku_id: skuId } : r));
+
+  const handleAddExcipient = () => {
+    if (!newExcipient.trim()) return;
+    const existing = allExcipients.find(e => e.name.toLowerCase() === newExcipient.toLowerCase());
+    setExcipients(ex => [...ex, { id: `new-${Date.now()}`, name: newExcipient.trim(), excipient_id: existing?.id || null, isNew: true }]);
+    setNewExcipient("");
+  };
+
+  const handleDeleteExcipient = (id) => setExcipients(ex => ex.filter(e => e.id !== id));
+
   const handleSubmit = async () => {
-    if (!form.product_name_en?.trim()) { alert("请填写英文产品名称"); return; }
+    if (!form.product_name.trim()) { alert("请填写产品名称"); return; }
     setSaving(true);
-    try { await onSave(isEdit ? product.id : null, form, ingredients); onClose(); }
+    try { await onSave(isEdit ? product.id : null, form, medicinal, excipients); onClose(); }
     catch (e) { alert("保存失败: " + e.message); }
     setSaving(false);
   };
 
-  const f = (key, val) => setForm(p => ({ ...p, [key]: val }));
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 1100, display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: 40, overflowY: "auto" }}>
-      <div style={{ background: "#fff", borderRadius: 12, width: 600, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", marginBottom: 40 }}>
-        <div style={{ padding: "24px 28px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{isEdit ? "编辑产品" : "新增产品"}</h2>
-            <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8" }}>×</button>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {/* 名称 */}
-            <div>
-              <label style={labelStyle}>Product Name (English) *</label>
-              <input value={form.product_name_en} onChange={e => f("product_name_en", e.target.value)}
-                style={inputStyle} placeholder="e.g. Youth Greeting Capsule" />
-            </div>
-            <div>
-              <label style={labelStyle}>产品名称（中文）</label>
-              <input value={form.product_name} onChange={e => f("product_name", e.target.value)}
-                style={inputStyle} placeholder="如：青春有你胶囊" />
-            </div>
-
-            {/* 配方前置：先选品牌和ingredients */}
-            <div>
-              <label style={labelStyle}>配方 Ingredients</label>
-              <IngredientPicker skus={skus} selected={ingredients} onChange={setIngredients} />
-            </div>
-
-            {/* 品牌 */}
-            <div>
-              <label style={labelStyle}>品牌</label>
-              <select value={form.brand_id} onChange={e => f("brand_id", e.target.value)} style={inputStyle}>
-                <option value="">选择品牌</option>
-                {brands.map(b => <option key={b.id} value={b.id}>{b.name_zh}{b.name_en ? ` / ${b.name_en}` : ""}</option>)}
-              </select>
-            </div>
-
-            {/* 状态 */}
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>生产状态</label>
-                <select value={form.production_status} onChange={e => f("production_status", e.target.value)} style={inputStyle}>
-                  <option value="not_started">未开始</option>
-                  <option value="in_production">生产中</option>
-                  <option value="completed">已完成</option>
-                </select>
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>审批状态</label>
-                <select value={form.approval_status} onChange={e => f("approval_status", e.target.value)} style={inputStyle}>
-                  <option value="pending">待审批</option>
-                  <option value="approved">已审批</option>
-                  <option value="rejected">已拒绝</option>
-                </select>
-              </div>
-            </div>
-
-            {/* 价格 */}
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>价格 CAD</label>
-                <input value={form.price_cad} onChange={e => f("price_cad", e.target.value)} style={inputStyle} placeholder="0.00" />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>价格 USD</label>
-                <input value={form.price_usd} onChange={e => f("price_usd", e.target.value)} style={inputStyle} placeholder="0.00" />
-              </div>
-            </div>
-
-            {/* 上架 */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <input type="checkbox" id="is_listed" checked={form.is_listed} onChange={e => f("is_listed", e.target.checked)} />
-              <label htmlFor="is_listed" style={{ fontSize: 13, color: "#475569", cursor: "pointer" }}>已上架</label>
-            </div>
-          </div>
-            {/* 备注 */}
-            <div>
-              <label style={labelStyle}>备注</label>
-              <textarea value={form.notes} onChange={e => f("notes", e.target.value)} rows={2}
-                style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
-            </div>
-
-          <button onClick={handleSubmit} disabled={saving} style={{
-            width: "100%", padding: 12, fontSize: 14, fontWeight: 600, border: "none", borderRadius: 8,
-            background: "#2563eb", color: "#fff", cursor: saving ? "wait" : "pointer", marginTop: 20,
-          }}>{saving ? "保存中..." : "保存"}</button>
-        </div>
-      </div>
-    </div>
+  const sectionTitle = (t) => (
+    <div style={{ fontSize: 11, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: 0.5, margin: "16px 0 8px" }}>{t}</div>
   );
-}
-
-const labelStyle = { fontSize: 12, color: "#64748b", fontWeight: 500, display: "block", marginBottom: 4 };
-const inputStyle = { width: "100%", padding: "8px 10px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 6, boxSizing: "border-box", fontFamily: "inherit" };
-
-// ============================================================
-// ProductDetail — 右侧详情面板
-// ============================================================
-function ProductDetail({ product, brands, skus, onEdit, onDelete, onClose }) {
-  if (!product) return null;
-  const brand = brands.find(b => b.id === product.brand_id);
 
   return (
-    <div style={{
-      position: "fixed", top: 0, right: 0, bottom: 0, width: 480,
-      background: "#fff", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
-      zIndex: 1000, overflowY: "auto", borderLeft: "1px solid #e2e8f0",
-    }}>
+    <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 540, background: "#fff", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)", zIndex: 1000, overflowY: "auto", borderLeft: "1px solid #e2e8f0" }}>
       <div style={{ padding: "24px 28px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-          <div>
-            {brand && <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{brand.name_zh}</div>}
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#0f172a" }}>{product.product_name}</h2>
-            {product.product_name_en && <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{product.product_name_en}</div>}
-          </div>
+        {/* 头部 */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a" }}>{isEdit ? "编辑产品" : "新增产品"}</h2>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => onEdit(product)} style={{ background: "none", border: "1px solid #e2e8f0", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: "#475569" }}>✏️ 编辑</button>
+            {isEdit && (
+              <button onClick={() => { if (confirm(`确定删除「${product.product_name}」？`)) { onDelete(product.id); onClose(); } }}
+                style={{ padding: "6px 12px", fontSize: 12, border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>删除</button>
+            )}
             <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8" }}>×</button>
           </div>
         </div>
 
-        {/* 状态badges */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
-          <StatusBadge type="production" value={product.production_status} />
-          <StatusBadge type="approval" value={product.approval_status} />
-          {product.is_listed && <span style={{ padding: "2px 8px", borderRadius: 9999, fontSize: 11, fontWeight: 500, background: "#dcfce7", color: "#16a34a", border: "1px solid #bbf7d0" }}>已上架</span>}
+        {/* 基本信息 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <Field label="Product Name *">
+            <input value={form.product_name} onChange={e => f("product_name", e.target.value)} style={iS} placeholder="e.g. Ashwagandha 600mg" />
+          </Field>
+          <Field label="中文名">
+            <input value={form.product_name_zh} onChange={e => f("product_name_zh", e.target.value)} style={iS} placeholder="可选" />
+          </Field>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Field label="品牌" style={{ flex: 1 }}>
+              <select value={form.primary_brand_id} onChange={e => f("primary_brand_id", e.target.value)} style={iS}>
+                <option value="">选择品牌</option>
+                {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </Field>
+            <Field label="NPN" style={{ flex: 1 }}>
+              <input value={form.npn} onChange={e => f("npn", e.target.value)} style={iS} placeholder="80145433" />
+            </Field>
+          </div>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+            <Field label="Licensing Status" style={{ flex: 1 }}>
+              <select value={form.licensing_status} onChange={e => f("licensing_status", e.target.value)} style={iS}>
+                <option value="not_started">未申请</option>
+                <option value="pending">Pending</option>
+                <option value="active">Active</option>
+                <option value="expired">Expired</option>
+              </select>
+            </Field>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 8 }}>
+              <input type="checkbox" id="is_marketed" checked={form.is_marketed} onChange={e => f("is_marketed", e.target.checked)} />
+              <label htmlFor="is_marketed" style={{ fontSize: 13, color: "#475569", cursor: "pointer", whiteSpace: "nowrap" }}>已上市</label>
+            </div>
+          </div>
         </div>
 
-        {/* 价格 */}
-        {(product.price_cad || product.price_usd) && (
-          <div style={{ padding: 12, background: "#f0fdf4", borderRadius: 8, marginBottom: 16, display: "flex", gap: 20 }}>
-            {product.price_cad && <div><div style={{ fontSize: 11, color: "#64748b" }}>CAD</div><div style={{ fontSize: 16, fontWeight: 600, color: "#16a34a" }}>${product.price_cad}</div></div>}
-            {product.price_usd && <div><div style={{ fontSize: 11, color: "#64748b" }}>USD</div><div style={{ fontSize: 16, fontWeight: 600, color: "#16a34a" }}>${product.price_usd}</div></div>}
-          </div>
-        )}
-
-        {/* 配方 */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>配方 ({product.ingredients?.length || 0} 种成分)</div>
-          {product.ingredients?.length > 0 ? product.ingredients.map(ing => {
-            const sku = skus.find(s => s.id === ing.sku_id);
-            return (
-              <div key={ing.id} style={{ padding: "8px 0", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>{sku?.product_name || ing.sku_id}</div>
-                  <div style={{ fontSize: 11, color: "#64748b" }}>{sku?.ingredient || "—"}</div>
-                </div>
-                {ing.dosage && <div style={{ fontSize: 12, color: "#3b82f6", fontWeight: 500 }}>{ing.dosage}</div>}
-              </div>
-            );
-          }) : <div style={{ fontSize: 13, color: "#94a3b8" }}>暂无配方信息</div>}
+        {/* Medicinal Ingredients */}
+        {sectionTitle("Medicinal Ingredients")}
+        {medicinal.map(item => (
+          <MedicinalRow key={item.id} item={item} skus={skus} editing={true}
+            onUpdateSku={handleUpdateSku} onDelete={handleDeleteCommon} />
+        ))}
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          <input value={newCommon} onChange={e => setNewCommon(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleAddCommon()}
+            placeholder="添加通用名，如 Withania somnifera..."
+            style={{ flex: 1, padding: "6px 10px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, outline: "none" }} />
+          <button onClick={handleAddCommon} style={{ padding: "6px 12px", fontSize: 12, border: "none", borderRadius: 6, background: "#3b82f6", color: "#fff", cursor: "pointer" }}>+ 添加</button>
         </div>
 
-        {/* 备注 */}
-        {product.notes && (
-          <div style={{ padding: 12, background: "#f8fafc", borderRadius: 8 }}>
-            <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, marginBottom: 4 }}>备注</div>
-            <div style={{ fontSize: 13, color: "#334155", whiteSpace: "pre-wrap" }}>{product.notes}</div>
+        {/* Non-medicinal */}
+        {sectionTitle("Non-medicinal Ingredients")}
+        {excipients.map(item => (
+          <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid #f1f5f9" }}>
+            <div style={{ flex: 1, fontSize: 13, color: "#334155" }}>{item.name}</div>
+            <button onClick={() => handleDeleteExcipient(item.id)}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", fontSize: 16, padding: "0 2px" }}
+              onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+              onMouseLeave={e => e.currentTarget.style.color = "#cbd5e1"}>×</button>
           </div>
-        )}
+        ))}
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          <input value={newExcipient} onChange={e => setNewExcipient(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleAddExcipient()}
+            placeholder="添加辅料，如 Hypromellose..."
+            list="exc-suggestions"
+            style={{ flex: 1, padding: "6px 10px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, outline: "none" }} />
+          <datalist id="exc-suggestions">
+            {allExcipients.map(e => <option key={e.id} value={e.name} />)}
+          </datalist>
+          <button onClick={handleAddExcipient} style={{ padding: "6px 12px", fontSize: 12, border: "none", borderRadius: 6, background: "#3b82f6", color: "#fff", cursor: "pointer" }}>+ 添加</button>
+        </div>
 
-        {/* 删除 */}
-        <button onClick={() => { if (confirm(`确定删除「${product.product_name}」？`)) onDelete(product.id); }}
-          style={{ marginTop: 20, width: "100%", padding: 10, fontSize: 13, border: "1px solid #fecaca", borderRadius: 8, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
-          删除产品
-        </button>
+        {/* 其他信息 */}
+        {sectionTitle("其他信息")}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <Field label="Dosage Form">
+            <input value={form.dosage_form} onChange={e => f("dosage_form", e.target.value)} style={iS} placeholder="Capsule, hard" />
+          </Field>
+          <Field label="Recommended Dose">
+            <input value={form.recommended_dose} onChange={e => f("recommended_dose", e.target.value)} style={iS} />
+          </Field>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Field label="Price CAD" style={{ flex: 1 }}>
+              <input value={form.price_cad} onChange={e => f("price_cad", e.target.value)} style={iS} placeholder="0.00" />
+            </Field>
+            <Field label="Price USD" style={{ flex: 1 }}>
+              <input value={form.price_usd} onChange={e => f("price_usd", e.target.value)} style={iS} placeholder="0.00" />
+            </Field>
+          </div>
+          <Field label="Notes">
+            <textarea value={form.notes} onChange={e => f("notes", e.target.value)} rows={2} style={{ ...iS, resize: "vertical", fontFamily: "inherit" }} />
+          </Field>
+        </div>
+
+        <button onClick={handleSubmit} disabled={saving} style={{
+          width: "100%", padding: 12, fontSize: 14, fontWeight: 600, border: "none", borderRadius: 8,
+          background: "#2563eb", color: "#fff", cursor: saving ? "wait" : "pointer", marginTop: 20,
+        }}>{saving ? "保存中..." : "保存"}</button>
       </div>
     </div>
   );
 }
+
+function Field({ label, children, style }) {
+  return (
+    <div style={style}>
+      <label style={{ fontSize: 11, color: "#64748b", fontWeight: 500, display: "block", marginBottom: 3 }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+const iS = { width: "100%", padding: "7px 10px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 6, boxSizing: "border-box", fontFamily: "inherit", outline: "none" };
 
 // ============================================================
 // ProductTab
@@ -440,30 +377,39 @@ function ProductDetail({ product, brands, skus, onEdit, onDelete, onClose }) {
 function ProductTab({ skus }) {
   const [products, setProducts] = useState([]);
   const [brands, setBrands] = useState([]);
+  const [excipients, setExcipients] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [detail, setDetail] = useState(null);
-  const [editProduct, setEditProduct] = useState(null);
-  const [showForm, setShowForm] = useState(false);
+  const [formProduct, setFormProduct] = useState(undefined); // undefined=关闭, null=新增, obj=编辑
   const [search, setSearch] = useState("");
   const [filterBrand, setFilterBrand] = useState("");
-  const [filterProduction, setFilterProduction] = useState("");
-  const [filterApproval, setFilterApproval] = useState("");
+  const [filterLicensing, setFilterLicensing] = useState("");
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [prods, brands, pis] = await Promise.all([
+      const [prods, brandsData, pbs, pmis, pes, excs] = await Promise.all([
         supabase.from("products").select("*"),
         supabase.from("brands").select("*"),
-        supabase.from("product_ingredients").select("*"),
+        supabase.from("product_brands").select("*"),
+        supabase.from("product_medicinal_ingredients").select("*"),
+        supabase.from("product_excipients").select("*"),
+        supabase.from("excipients").select("*"),
       ]);
-      setBrands(brands);
-      const piMap = {};
-      pis.forEach(pi => {
-        if (!piMap[pi.product_id]) piMap[pi.product_id] = [];
-        piMap[pi.product_id].push(pi);
-      });
-      setProducts(prods.map(p => ({ ...p, ingredients: piMap[p.id] || [] })));
+      setBrands(brandsData);
+      setExcipients(excs);
+      const pbMap = {}, pmiMap = {}, peMap = {};
+      pbs.forEach(pb => { if (!pbMap[pb.product_id]) pbMap[pb.product_id] = []; pbMap[pb.product_id].push(pb); });
+      pmis.forEach(pmi => { if (!pmiMap[pmi.product_id]) pmiMap[pmi.product_id] = []; pmiMap[pmi.product_id].push(pmi); });
+      pes.forEach(pe => { if (!peMap[pe.product_id]) peMap[pe.product_id] = []; peMap[pe.product_id].push(pe); });
+      setProducts(prods.map(p => ({
+        ...p,
+        productBrands: pbMap[p.id] || [],
+        medicinal: pmiMap[p.id] || [],
+        excipients: (peMap[p.id] || []).map(pe => {
+          const exc = excs.find(e => e.id === pe.excipient_id);
+          return { id: pe.id, excipient_id: pe.excipient_id, name: exc?.name || "—" };
+        }),
+      })));
     } catch (e) { alert("加载失败: " + e.message); }
     setLoading(false);
   };
@@ -473,25 +419,29 @@ function ProductTab({ skus }) {
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return products.filter(p => {
-      if (q && !p.product_name?.toLowerCase().includes(q) && !p.product_name_en?.toLowerCase().includes(q)) return false;
-      if (filterBrand && String(p.brand_id) !== filterBrand) return false;
-      if (filterProduction && p.production_status !== filterProduction) return false;
-      if (filterApproval && p.approval_status !== filterApproval) return false;
+      if (q) {
+        const names = [p.product_name, p.product_name_zh, ...(p.productBrands || []).map(pb => pb.brand_name)].filter(Boolean).join(" ").toLowerCase();
+        if (!names.includes(q)) return false;
+      }
+      if (filterBrand && String(p.primary_brand_id) !== filterBrand) return false;
+      if (filterLicensing && p.licensing_status !== filterLicensing) return false;
       return true;
     });
-  }, [products, search, filterBrand, filterProduction, filterApproval]);
+  }, [products, search, filterBrand, filterLicensing]);
 
-  const handleSave = async (productId, formData, ingredients) => {
+  const handleSave = async (productId, formData, medicinal, excipientsList) => {
     const payload = {
-      product_name: formData.product_name || null,
-      product_name_en: formData.product_name_en || null,
-      brand_id: formData.brand_id ? parseInt(formData.brand_id) : null,
-      production_status: formData.production_status,
-      approval_status: formData.approval_status,
-      is_listed: formData.is_listed,
-      notes: formData.notes || null,
-      price_cad: formData.price_cad ? parseFloat(formData.price_cad) : null,
-      price_usd: formData.price_usd ? parseFloat(formData.price_usd) : null,
+      product_name:     formData.product_name    || null,
+      product_name_zh:  formData.product_name_zh || null,
+      primary_brand_id: formData.primary_brand_id ? parseInt(formData.primary_brand_id) : null,
+      npn:              formData.npn              || null,
+      licensing_status: formData.licensing_status,
+      is_marketed:      formData.is_marketed,
+      dosage_form:      formData.dosage_form      || null,
+      recommended_dose: formData.recommended_dose || null,
+      price_cad:        formData.price_cad ? parseFloat(formData.price_cad) : null,
+      price_usd:        formData.price_usd ? parseFloat(formData.price_usd) : null,
+      notes:            formData.notes            || null,
     };
 
     let pid = productId;
@@ -502,25 +452,58 @@ function ProductTab({ skus }) {
       pid = newP.id;
     }
 
-    // 更新配方：先删再插
-    await supabase.from("product_ingredients").deleteWhere("product_id", pid);
-    if (ingredients.length > 0) {
-      await supabase.from("product_ingredients").insert(
-        ingredients.map(i => ({ product_id: pid, sku_id: i.sku_id, dosage: i.dosage || null, notes: i.notes || null }))
-      );
+    // medicinal: 只处理新增的行（isNew），已有的行sku_id通过handleUpdateSku单独更新
+    const newMedicinal = medicinal.filter(m => m.isNew);
+    if (newMedicinal.length > 0) {
+      // 先找或创建 common_ingredients
+      for (const m of newMedicinal) {
+        let common = (await supabase.from("common_ingredients").select("*")).find(c => c.name.toLowerCase() === m.common_name.toLowerCase());
+        if (!common) {
+          const [newC] = await supabase.from("common_ingredients").insert({ name: m.common_name });
+          common = newC;
+        }
+        await supabase.from("product_medicinal_ingredients").insert({
+          product_id: pid, common_ingredient_id: common.id, sku_id: m.sku_id || null, amount: m.amount || null,
+        });
+      }
     }
+
+    // excipients: 只处理新增的
+    const newExcipients = excipientsList.filter(e => e.isNew);
+    for (const ex of newExcipients) {
+      let exc = excipients.find(e => e.name.toLowerCase() === ex.name.toLowerCase());
+      if (!exc) {
+        const [newExc] = await supabase.from("excipients").insert({ name: ex.name });
+        exc = newExc;
+      }
+      try {
+        await supabase.from("product_excipients").insert({ product_id: pid, excipient_id: exc.id });
+      } catch (_) {} // ignore unique constraint if already exists
+    }
+
     await loadData();
-    setDetail(null);
   };
 
   const handleDelete = async (id) => {
     await supabase.from("products").delete(id);
-    setDetail(null);
+    setFormProduct(undefined);
     await loadData();
   };
 
-  const openEdit = (p) => { setEditProduct(p); setShowForm(true); };
-  const openNew = () => { setEditProduct(null); setShowForm(true); };
+  const handleUpdateSku = async (pmiId, skuId) => {
+    await supabase.from("product_medicinal_ingredients").update(pmiId, { sku_id: skuId });
+    await loadData();
+  };
+
+  const handleDeleteMedicinal = async (pmiId) => {
+    await supabase.from("product_medicinal_ingredients").delete(pmiId);
+    await loadData();
+  };
+
+  const handleDeleteExcipient = async (peId) => {
+    await supabase.from("product_excipients").delete(peId);
+    await loadData();
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
@@ -530,21 +513,16 @@ function ProductTab({ skus }) {
           style={{ flex: 1, minWidth: 200, padding: "9px 12px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc", outline: "none" }} />
         <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} style={selStyle}>
           <option value="">全部品牌</option>
-          {brands.map(b => <option key={b.id} value={b.id}>{b.name_zh}</option>)}
+          {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
-        <select value={filterProduction} onChange={e => setFilterProduction(e.target.value)} style={selStyle}>
-          <option value="">全部生产状态</option>
-          <option value="not_started">未开始</option>
-          <option value="in_production">生产中</option>
-          <option value="completed">已完成</option>
+        <select value={filterLicensing} onChange={e => setFilterLicensing(e.target.value)} style={selStyle}>
+          <option value="">全部状态</option>
+          <option value="active">Active</option>
+          <option value="pending">Pending</option>
+          <option value="not_started">未申请</option>
+          <option value="expired">Expired</option>
         </select>
-        <select value={filterApproval} onChange={e => setFilterApproval(e.target.value)} style={selStyle}>
-          <option value="">全部审批状态</option>
-          <option value="pending">待审批</option>
-          <option value="approved">已审批</option>
-          <option value="rejected">已拒绝</option>
-        </select>
-        <button onClick={openNew} style={{ padding: "9px 16px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 8, background: "#3b82f6", color: "#fff", cursor: "pointer" }}>
+        <button onClick={() => setFormProduct(null)} style={{ padding: "9px 16px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 8, background: "#3b82f6", color: "#fff", cursor: "pointer" }}>
           + 新增产品
         </button>
       </div>
@@ -554,27 +532,27 @@ function ProductTab({ skus }) {
       </div>
 
       {loading ? <Loading /> : (
-        <div style={{ padding: "0 28px 40px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
+        <div style={{ padding: "0 28px 40px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
           {filtered.map(p => {
-            const brand = brands.find(b => b.id === p.brand_id);
+            const displayName = getDisplayName(p, p.productBrands, brands);
+            const brand = brands.find(b => b.id === p.primary_brand_id);
             return (
-              <div key={p.id} onClick={() => setDetail(p)} style={{
+              <div key={p.id} onClick={() => setFormProduct(p)} style={{
                 background: "#fff", borderRadius: 10, padding: 16, cursor: "pointer",
                 border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                transition: "box-shadow 0.15s",
               }}
                 onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)"}
                 onMouseLeave={e => e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"}
               >
-                {brand && <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{brand.name_zh}</div>}
-                <div style={{ fontSize: 15, fontWeight: 600, color: "#0f172a", marginBottom: 2 }}>{p.product_name}</div>
-                {p.product_name_en && <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>{p.product_name_en}</div>}
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
-                  <StatusBadge type="production" value={p.production_status} />
-                  <StatusBadge type="approval" value={p.approval_status} />
-                  {p.is_listed && <span style={{ padding: "2px 8px", borderRadius: 9999, fontSize: 11, background: "#dcfce7", color: "#16a34a", border: "1px solid #bbf7d0" }}>已上架</span>}
+                {brand && <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{brand.name}</div>}
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", marginBottom: 2, lineHeight: 1.3 }}>{displayName}</div>
+                {p.product_name_zh && <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6 }}>{p.product_name_zh}</div>}
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
+                  {p.npn && <span style={{ fontSize: 10, color: "#64748b", background: "#f1f5f9", padding: "1px 6px", borderRadius: 4 }}>NPN {p.npn}</span>}
+                  {p.licensing_status && <StatusBadge type="licensing" value={p.licensing_status} />}
+                  {p.is_marketed && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 9999, background: "#dcfce7", color: "#16a34a", border: "1px solid #bbf7d0" }}>已上市</span>}
                 </div>
-                <div style={{ fontSize: 12, color: "#94a3b8" }}>{p.ingredients?.length || 0} 种成分</div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.medicinal?.length || 0} 种成分</div>
               </div>
             );
           })}
@@ -582,29 +560,25 @@ function ProductTab({ skus }) {
         </div>
       )}
 
-      {detail && (
+      {formProduct !== undefined && (
         <>
-          <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.2)", zIndex: 999 }} />
-          <ProductDetail product={detail} brands={brands} skus={skus}
-            onEdit={openEdit} onDelete={handleDelete} onClose={() => setDetail(null)} />
+          <div onClick={() => setFormProduct(undefined)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.2)", zIndex: 999 }} />
+          <ProductForm
+            product={formProduct}
+            brands={brands}
+            skus={skus}
+            allExcipients={excipients}
+            onSave={handleSave}
+            onDelete={handleDelete}
+            onClose={() => setFormProduct(undefined)}
+          />
         </>
-      )}
-
-      {showForm && (
-        <ProductForm
-          product={editProduct}
-          brands={brands}
-          skus={skus}
-          onSave={handleSave}
-          onClose={() => { setShowForm(false); setEditProduct(null); }}
-        />
       )}
     </div>
   );
 }
 
 const selStyle = { padding: "9px 10px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" };
-
 // ============================================================
 // IngredientTab — 原来的全部内容
 // ============================================================
@@ -933,7 +907,7 @@ export default function App() {
   const [skus, setSkus] = useState([]);
 
   useEffect(() => {
-    supabase.from("skus").select("id,product_name,ingredient").then(setSkus).catch(() => {});
+    supabase.from("skus").select("id,ingredient_name,ingredient").then(setSkus).catch(() => {});
   }, []);
 
   const logout = () => { sessionStorage.clear(); window.location.reload(); };
