@@ -540,23 +540,24 @@ function ProductTab({ skus }) {
       const [newP] = await supabase.from("products").insert(payload);
       pid = newP.id;
     }
-
-    // medicinal: 只处理新增的行（isNew），已有的行sku_id通过handleUpdateSku单独更新
+    
+    // 新增的行：创建记录
     const newMedicinal = medicinal.filter(m => m.isNew);
-    if (newMedicinal.length > 0) {
-      // 先找或创建 common_ingredients
-      for (const m of newMedicinal) {
-        let common = (await supabase.from("common_ingredients").select("*")).find(c => c.name.toLowerCase() === m.common_name.toLowerCase());
-        if (!common) {
-          const [newC] = await supabase.from("common_ingredients").insert({ name: m.common_name });
-          common = newC;
-        }
-        await supabase.from("product_medicinal_ingredients").insert({
-          product_id: pid, common_ingredient_id: common.id, sku_id: m.sku_id || null, amount: m.amount || null,
-        });
+    for (const m of newMedicinal) {
+      let common = (await supabase.from("common_ingredients").select("*")).find(c => c.name.toLowerCase() === m.common_name.toLowerCase());
+      if (!common) {
+        const [newC] = await supabase.from("common_ingredients").insert({ name: m.common_name });
+        common = newC;
       }
+      await supabase.from("product_medicinal_ingredients").insert({
+        product_id: pid, common_ingredient_id: common.id, sku_id: m.sku_id || null, amount: m.amount || null,
+      });
     }
-
+    // 已有的行：只更新sku_id
+    const existingMedicinal = medicinal.filter(m => !m.isNew);
+    for (const m of existingMedicinal) {
+      await supabase.from("product_medicinal_ingredients").update(m.id, { sku_id: m.sku_id || null });
+    }
     // excipients: 只处理新增的
     const newExcipients = excipientsList.filter(e => e.isNew);
     for (const ex of newExcipients) {
