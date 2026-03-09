@@ -214,6 +214,58 @@ function MedicinalRow({ item, skus, onUpdateSku, onDelete, editing }) {
 }
 
 // ============================================================
+// CommonNamePicker — SKU详情面板里关联common name
+// ============================================================
+function CommonNamePicker({ skuId, currentCommonId, commonIngredients, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const current = commonIngredients.find(c => c.id === currentCommonId);
+
+  const suggestions = useMemo(() => {
+    if (!input.trim()) return [];
+    const q = input.toLowerCase();
+    return commonIngredients.filter(c => c.name?.toLowerCase().includes(q)).slice(0, 8);
+  }, [input, commonIngredients]);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      {current ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "5px 10px" }}>
+          <div style={{ flex: 1, fontSize: 12, color: "#15803d", fontWeight: 500 }}>{current.name}</div>
+          <button onClick={() => onChange(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 13, padding: 0 }}>×</button>
+        </div>
+      ) : (
+        <input value={input} onChange={e => { setInput(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+          placeholder="关联通用名..."
+          style={{ width: "100%", padding: "6px 10px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, boxSizing: "border-box", outline: "none" }} />
+      )}
+      {open && suggestions.length > 0 && (
+        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.1)", zIndex: 600, maxHeight: 200, overflowY: "auto" }}>
+          {suggestions.map(c => (
+            <div key={c.id} onClick={() => { onChange(c.id); setInput(""); setOpen(false); }}
+              style={{ padding: "6px 10px", cursor: "pointer", fontSize: 12, borderBottom: "1px solid #f1f5f9" }}
+              onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+              onMouseLeave={e => e.currentTarget.style.background = "#fff"}>
+              {c.name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+// ============================================================
 // ProductForm — 新增 + 编辑同一个表单（右侧面板）
 // ============================================================
 function ProductForm({ product, brands, skus, allExcipients, onSave, onDelete, onClose }) {
@@ -412,6 +464,7 @@ function ProductTab({ skus }) {
   const [products, setProducts] = useState([]);
   const [brands, setBrands] = useState([]);
   const [excipients, setExcipients] = useState([]);
+  const [commonIngredients, setCommonIngredients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formProduct, setFormProduct] = useState(undefined); // undefined=关闭, null=新增, obj=编辑
   const [search, setSearch] = useState("");
@@ -421,19 +474,21 @@ function ProductTab({ skus }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [prods, brandsData, pbs, pmis, pes, excs] = await Promise.all([
+      const [prods, brandsData, pbs, pmis, pes, excs, commons] = await Promise.all([
         supabase.from("products").select("*"),
         supabase.from("brands").select("*"),
         supabase.from("product_brands").select("*"),
         supabase.from("product_medicinal_ingredients").select("*"),
         supabase.from("product_excipients").select("*"),
         supabase.from("excipients").select("*"),
+        supabase.from("common_ingredients").select("*"),
       ]);
       setBrands(brandsData);
       setExcipients(excs);
+      setCommonIngredients(commons);
       const pbMap = {}, pmiMap = {}, peMap = {};
       pbs.forEach(pb => { if (!pbMap[pb.product_id]) pbMap[pb.product_id] = []; pbMap[pb.product_id].push(pb); });
-      pmis.forEach(pmi => { if (!pmiMap[pmi.product_id]) pmiMap[pmi.product_id] = []; pmiMap[pmi.product_id].push(pmi); });
+      pmis.forEach(pmi => {   const common = commons.find(c => c.id === pmi.common_ingredient_id);   pmi.common_name = common?.name || "—";   if (!pmiMap[pmi.product_id]) pmiMap[pmi.product_id] = [];   pmiMap[pmi.product_id].push(pmi); });
       pes.forEach(pe => { if (!peMap[pe.product_id]) peMap[pe.product_id] = []; peMap[pe.product_id].push(pe); });
       setProducts(prods.map(p => ({
         ...p,
@@ -613,6 +668,51 @@ function ProductTab({ skus }) {
 }
 
 const selStyle = { padding: "9px 10px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" };
+
+// ============================================================
+// SkuCommonNameEditor — 在ingredient详情面板里用
+// 把这个加进 DetailPanel 的编辑模式里
+// ============================================================
+function SkuCommonNameEditor({ skuId, currentCommonId, commonIngredients, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [selectedId, setSelectedId] = useState(currentCommonId);
+  const [saving, setSaving] = useState(false);
+
+  const current = commonIngredients.find(c => c.id === selectedId);
+
+  const handleSave = async (newId) => {
+    setSaving(true);
+    try {
+      await supabase.from("skus").update(skuId, { common_ingredient_id: newId });
+      setSelectedId(newId);
+      onSave?.(newId);
+    } catch (e) { alert("保存失败: " + e.message); }
+    setSaving(false);
+    setEditing(false);
+  };
+
+  if (!editing) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 13, color: current ? "#15803d" : "#94a3b8" }}>
+          {current ? current.name : "未关联通用名"}
+        </span>
+        <button onClick={() => setEditing(true)} style={{ fontSize: 11, padding: "2px 8px", border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", color: "#475569" }}>
+          {current ? "修改" : "关联"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <CommonNamePicker
+      skuId={skuId}
+      currentCommonId={selectedId}
+      commonIngredients={commonIngredients}
+      onChange={handleSave}
+    />
+  );
+}
 // ============================================================
 // IngredientTab — 原来的全部内容
 // ============================================================
@@ -637,18 +737,21 @@ function IngredientTab() {
   const [fontSize, setFontSize] = useState(13);
   const [expanded, setExpanded] = useState(false);
   const [openedColW, setOpenedColW] = useState(80);
+  const [commonIngredients, setCommonIngredients] = useState([]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [suppData, skuData, funcData, catData] = await Promise.all([
+      const [suppData, skuData, funcData, catData, commonData] = await Promise.all([
         supabase.from("suppliers").select("*"),
         supabase.from("skus").select("*"),
         supabase.from("sku_functions").select("*"),
         supabase.from("function_categories").select("*"),
-      ]);
+        supabase.from("common_ingredients").select("*"),
+      ])
       setSuppliers(suppData);
       setCategories(catData);
+      setCommonIngredients(commonData); 
       const supplierMap = {};
       suppData.forEach(s => { supplierMap[s.id] = s; });
       const skuCatMap = {};
@@ -865,6 +968,7 @@ function IngredientTab() {
         <>
           <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.2)", zIndex: 999 }} />
           <DetailPanel item={detail} suppliers={suppliers} categories={categories} lang={lang}
+            commonIngredients={commonIngredients}
             onClose={() => setDetail(null)} onSave={handleSave} onDelete={handleDeleteSku} />
         </>
       )}
@@ -1130,7 +1234,7 @@ function ManageSuppliersForm({ suppliers, onAdd, onUpdate, onDelete, onClose }) 
   );
 }
 
-function DetailPanel({ item, suppliers, categories, lang, onClose, onSave, onDelete }) {
+function DetailPanel({ item, suppliers, categories, lang, commonIngredients = [], onClose, onSave, onDelete }) {
   const [editing, setEditing] = useState(false); const [form, setForm] = useState({}); const [selCatIds, setSelCatIds] = useState([]); const [saving, setSaving] = useState(false);
   useEffect(() => { if (item) { const f = {}; SKU_FIELDS.forEach(({ key }) => { f[key] = item[key] || ""; }); f.supplier_id = item.supplier_id || ""; setForm(f); setSelCatIds(item.category_ids || []); setEditing(false); } }, [item]);
   if (!item) return null;
@@ -1182,8 +1286,18 @@ function DetailPanel({ item, suppliers, categories, lang, onClose, onSave, onDel
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.supplier_name}</option>)}
               </select>
             </div>
+            <div style={{ display: "flex", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
+              <div style={{ width: 130, flexShrink: 0, fontSize: 13, color: "#64748b", fontWeight: 500, paddingTop: 6 }}>通用名</div>
+              <div style={{ flex: 1 }}>
+                <SkuCommonNameEditor
+                  skuId={item.id}
+                  currentCommonId={item.common_ingredient_id}
+                  commonIngredients={commonIngredients}
+                  />
+              </div>
+            </div>
           </>
-        )}
+    )}
         {SKU_FIELDS.map(({ key, label }) => (
           <div key={key} style={{ display: "flex", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
             <div style={{ width: 130, flexShrink: 0, fontSize: 13, color: "#64748b", fontWeight: 500, paddingTop: editing ? 8 : 0 }}>{label}</div>
