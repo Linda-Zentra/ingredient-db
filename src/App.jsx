@@ -61,7 +61,7 @@ const PASSWORDS = {
 };
 
 const SKU_FIELDS = [
-  { key: "region", label: "地区" }, { key: "product_name", label: "品名" },
+  { key: "region", label: "地区" }, { key: "ingredient_name", label: "品名" },
   { key: "form_potency", label: "Form & Potency" }, { key: "ingredient", label: "成分" },
   { key: "extraction_ratio_source", label: "提取比例/来源" }, { key: "lead_time", label: "交付周期" },
   { key: "expire_date", label: "Expire Date" }, { key: "price_usd_kg", label: "价格(USD/KG)" },
@@ -75,7 +75,7 @@ const SKU_FIELDS = [
 const TABLE_COLS = [
   { key: "region", label: "地区", w: 90 }, { key: "supplier_name", label: "供应商", w: 130 },
   { key: "contact_email", label: "联系人", w: 130 }, { key: "is_account_opened", label: "是否开户", w: 80 },
-  { key: "agreement_signed", label: "Agreement", w: 110 }, { key: "product_name", label: "品名", w: 150 },
+  { key: "agreement_signed", label: "Agreement", w: 110 }, { key: "ingredient_name", label: "品名", w: 150 },
   { key: "form_potency", label: "Form & Potency", w: 130 }, { key: "ingredient", label: "成分", w: 150 },
   { key: "extraction_ratio_source", label: "提取比例/来源", w: 120 }, { key: "lead_time", label: "交付周期", w: 100 },
   { key: "expire_date", label: "Expire", w: 90 }, { key: "price_usd_kg", label: "USD/KG", w: 110 },
@@ -736,7 +736,7 @@ function IngredientTab() {
   const [sortCol, setSortCol] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
   const [fontSize, setFontSize] = useState(13);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [openedColW, setOpenedColW] = useState(80);
   const [commonIngredients, setCommonIngredients] = useState([]);
 
