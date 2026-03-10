@@ -1281,7 +1281,7 @@ function LabelTab() {
   };
 
   const handleDuplicate = async (label) => {
-    const { id, created_at, updated_at, ...rest } = label;
+    const { id, created_at, updated_at, _prodName, _npn, ...rest } = label;
     rest.subtitle = (rest.subtitle || "") + " (副本)";
     await supabase.from("product_labels").insert(rest);
     await loadData();
@@ -1474,7 +1474,14 @@ function LabelTab() {
 
             {/* 区块列表 */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {SECTION_DEFS.map(sec => {
+              {SECTION_DEFS
+                .filter(sec => {
+                  // 双标签模式下，编辑器把英文和法语分两组显示
+                  // 这里先显示非法语部分
+                  if ((form.label_type || selected.label_type || "single") === "double" && sec.fr) return false;
+                  return true;
+                })
+                .map(sec => {
                 const isReadOnly = sec.source === "product" || sec.source === "computed";
                 const val = editing
                   ? (isReadOnly ? getVal(sec, selected) : (form[sec.key] ?? ""))
