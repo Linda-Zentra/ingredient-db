@@ -26,6 +26,7 @@ export const SKU_FIELDS = [
   { key: "npn_notes",               label: "NPN备注" },
   { key: "applicable_gender",       label: "适用性别" },
   { key: "applicable_population",   label: "适用人群" },
+  { key: "authorization_claims",    label: "授权声明" },
   { key: "notes",                   label: "备注" },
   { key: "certificates",            label: "Certificates" },
 ];
@@ -55,6 +56,7 @@ export const TABLE_COLS = [
   { key: "npn_notes",               label: "NPN备注",      w: 120 },
   { key: "applicable_gender",       label: "性别",         w: 50 },
   { key: "applicable_population",   label: "人群",         w: 60 },
+  { key: "authorization_claims",    label: "授权声明",      w: 200 },
   { key: "notes",                   label: "备注",         w: 120 },
   { key: "certificates",            label: "Certificates",  w: 120 },
 ];
