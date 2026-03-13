@@ -75,16 +75,16 @@ export const STATUS_CONFIG = {
 // 标签编辑 — section 定义
 // ============================================================
 export const SECTION_DEFS = [
-  { key: "product_name",        label: "1. 产品名称",                 source: "product", field: "product_name" },
+  { key: "product_name",        label: "1. 产品名称",                 source: "computed" },
   { key: "subtitle",            label: "2. 副标题 / 功能声明",         source: "label" },
-  { key: "spec",                label: "3. 规格 & NPN",               source: "label" },
+  { key: "spec",                label: "3. 规格 & NPN",               source: "computed" },
   { key: "recommended_use",     label: "4. Recommended Use",          source: "product", field: "recommended_use" },
   { key: "recommended_use_fr",  label: "4b. Utilisation Recommandée", source: "label", fr: true },
-  { key: "recommended_dose",    label: "5. Recommended Dose",         source: "product", field: "recommended_dose" },
+  { key: "recommended_dose",    label: "5. Recommended Dose",         source: "computed" },
   { key: "recommended_dose_fr", label: "5b. Dose Recommandée",        source: "label", fr: true },
   { key: "cautions",            label: "6. Cautions & Warnings",      source: "product", field: "caution" },
   { key: "cautions_fr",         label: "6b. Mises en garde",          source: "label", fr: true },
-  { key: "medicinal_en",        label: "7. Medicinal Ingredients",    source: "label", note: "完整标签格式 (含提取比/DHE)" },
+  { key: "medicinal_en",        label: "7. Medicinal Ingredients",    source: "computed" },
   { key: "medicinal_fr",        label: "7b. Ingrédients Médicinaux",  source: "label", fr: true },
   { key: "non_medicinal",       label: "8. Non-Medicinal",            source: "computed" },
   { key: "non_medicinal_fr",    label: "8b. Ingrédients Non Médicinaux", source: "label", fr: true },
@@ -94,7 +94,6 @@ export const SECTION_DEFS = [
   { key: "licence_holder",      label: "10b. Licence Holder",         source: "label" },
   { key: "sidebar_text",        label: "11. 侧边文字 / 卖点",         source: "label" },
 ];
-
 // ============================================================
 // 标签默认值
 // ============================================================

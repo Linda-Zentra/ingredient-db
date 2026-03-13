@@ -54,8 +54,11 @@ export default function App() {
   const [skus, setSkus] = useState([]);
 
   useEffect(() => {
-    supabase.from("skus").select("id,ingredient_name,ingredient").then(setSkus).catch(() => {});
+    supabase.from("skus").select("id,ingredient_name,ingredient")
+  .then(({ data }) => setSkus(data || []))
+  .catch(() => {});
   }, []);
+  
 
   const logout = () => { sessionStorage.clear(); window.location.reload(); };
 
