@@ -59,6 +59,11 @@ export default function LabelTab() {
   useEffect(() => { if (selected) resetForm(selected); }, [selected]);
 
   const getProduct = (label) => products.find(p => p.id === label?.product_id);
+  const getProdDisplayName = (prod) => {
+    if (!prod) return "";
+    const def = (prod.product_brands || []).find(pb => pb.is_default);
+    return def?.brand_name || prod.product_brands?.[0]?.brand_name || prod.product_name || "";
+  };
   const getVal = (sec, label) => {
   const prod = getProduct(label);
 
@@ -204,7 +209,7 @@ export default function LabelTab() {
     const q = search.toLowerCase().trim();
     return labels.map(l => {
       const prod = products.find(p => p.id === l.product_id);
-      return { ...l, _prodName: prod?.product_name || "", _npn: prod?.npn || "" };
+      return { ...l, _prodName: getProdDisplayName(prod), _npn: prod?.npn || "" };
     }).filter(l => {
       if (!q) return true;
       return l._prodName.toLowerCase().includes(q) || l._npn.includes(q) || (l.subtitle || "").toLowerCase().includes(q);
