@@ -32,7 +32,7 @@ export default function ProductTab({ skus }) {
         supabase.from("products").select(`
           *,
           product_brands(*),
-          product_medicinal_ingredients(*, common_ingredients(id, name)),
+          product_medicinal_ingredients(*, common_ingredients(id, scientific_name, name_en, name_fr)),
           product_excipients(*, excipients(id, name))
         `),
         supabase.from("brands").select("*"),
@@ -46,8 +46,10 @@ export default function ProductTab({ skus }) {
         productBrands: p.product_brands || [],
         medicinal: (p.product_medicinal_ingredients || []).map(pmi => ({
           id: pmi.id,
-          common_name: pmi.common_ingredients?.name || "—",
+          common_name: pmi.common_ingredients?.scientific_name || "—",
           common_ingredient_id: pmi.common_ingredient_id,
+          name_en: pmi.common_ingredients?.name_en || "",
+          name_fr: pmi.common_ingredients?.name_fr || "",
           amount: pmi.amount,
           sku_id: pmi.sku_id,
         })),
@@ -126,9 +128,9 @@ export default function ProductTab({ skus }) {
     for (const m of medicinal) {
       let commonId = m.common_ingredient_id;
       if (m.isNew) {
-        let common = commonCache.find(c => c.name.toLowerCase() === m.common_name.toLowerCase());
+        let common = commonCache.find(c => c.scientific_name.toLowerCase() === m.common_name.toLowerCase());
         if (!common) {
-          const { data: newC } = await supabase.from("common_ingredients").insert({ name: m.common_name }).select().single();
+          const { data: newC } = await supabase.from("common_ingredients").insert({ scientific_name: m.common_name }).select().single();
           common = newC;
           commonCache.push(common);
         }
@@ -138,6 +140,9 @@ export default function ProductTab({ skus }) {
         await supabase.from("product_medicinal_ingredients").insert({
           product_id: pid, common_ingredient_id: commonId, sku_id: m.sku_id || null, amount: m.amount || null,
         });
+        if (m.name_en !== undefined || m.name_fr !== undefined) {
+          await supabase.from("common_ingredients").update({ name_en: m.name_en || null, name_fr: m.name_fr || null }).eq("id", commonId);
+        }
       }
     }
 
