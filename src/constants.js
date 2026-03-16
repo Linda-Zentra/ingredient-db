@@ -87,14 +87,15 @@ export const SECTION_DEFS = [
   { key: "cautions",            label: "6. Cautions & Warnings",      source: "product", field: "caution" },
   { key: "cautions_fr",         label: "6b. Mises en garde",          source: "label", fr: true },
   { key: "medicinal_en",        label: "7. Medicinal Ingredients",    source: "computed" },
-  { key: "medicinal_fr",        label: "7b. Ingrédients Médicinaux",  source: "label", fr: true },
+  { key: "medicinal_fr",        label: "7b. Ingrédients Médicinaux",  source: "computed", fr: true },
+  { key: "authorization_claims", label: "7c. Authorization Claims",   source: "computed" },
   { key: "non_medicinal",       label: "8. Non-Medicinal",            source: "computed" },
   { key: "non_medicinal_fr",    label: "8b. Ingrédients Non Médicinaux", source: "label", fr: true },
   { key: "risk_info",           label: "9. Risk Information",         source: "label" },
   { key: "risk_info_fr",        label: "9b. Renseignements Risques",  source: "label", fr: true },
   { key: "company_info",        label: "10. 公司信息",                 source: "label" },
   { key: "licence_holder",      label: "10b. Licence Holder",         source: "label" },
-  { key: "sidebar_text",        label: "11. 侧边文字 / 卖点",         source: "label" },
+  { key: "side_bar",            label: "11. 侧边文字 / 卖点",         source: "label" },
 ];
 // ============================================================
 // 标签默认值

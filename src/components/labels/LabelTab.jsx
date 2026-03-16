@@ -35,7 +35,8 @@ export default function LabelTab() {
           *,
           product_brands(*),
           product_excipients(*, excipients(name)),
-          product_medicinal_ingredients(*, common_ingredients(name))
+          product_medicinal_ingredients(*, common_ingredients(name_en, name_fr), skus(authorization_claims)),
+          product_ingredients(*, skus(authorization_claims))
           `),
         
       ]);
@@ -73,9 +74,8 @@ export default function LabelTab() {
     switch (sec.key) {
 
       case "product_name": {
-        // 用 is_default 的 brand_name，没有就 fallback product_name
         const def = (prod?.product_brands || []).find(pb => pb.is_default);
-        return def?.brand_name || prod?.product_name || "";
+        return def?.brand_name || prod?.product_brands?.[0]?.brand_name || prod?.product_name || "";
       }
 
       case "spec": {
@@ -100,12 +100,27 @@ export default function LabelTab() {
       }
 
       case "medicinal_en": {
-        // [common_ingredient name]  [amount] 每行一个
         const ingredients = prod?.product_medicinal_ingredients || [];
         return ingredients
-          .map(pmi => [pmi.common_ingredients?.name, pmi.amount].filter(Boolean).join("  "))
+          .map(pmi => [pmi.common_ingredients?.name_en, pmi.amount].filter(Boolean).join("  "))
           .filter(Boolean)
           .join("\n") || "";
+      }
+
+      case "medicinal_fr": {
+        const ingredients = prod?.product_medicinal_ingredients || [];
+        return ingredients
+          .map(pmi => [pmi.common_ingredients?.name_fr, pmi.amount].filter(Boolean).join("  "))
+          .filter(Boolean)
+          .join("\n") || "";
+      }
+
+      case "authorization_claims": {
+        const ingredients = prod?.product_medicinal_ingredients || [];
+        const claims = ingredients
+          .map(pmi => pmi.skus?.authorization_claims)
+          .filter(Boolean);
+        return [...new Set(claims)].join("\n") || "";
       }
 
       case "non_medicinal":
@@ -126,7 +141,7 @@ export default function LabelTab() {
       recommended_use_fr: "", recommended_dose_fr: "", cautions_fr: "",
       medicinal_fr: "", non_medicinal_fr: "",
       risk_info: DEFAULT_RISK, risk_info_fr: DEFAULT_RISK_FR,
-      company_info: DEFAULT_COMPANY, licence_holder: "Nutrizen Station Lab Inc.", sidebar_text: "",
+      company_info: DEFAULT_COMPANY, licence_holder: "Nutrizen Station Lab Inc.", side_bar: "",
     };
     const { data: newLabel } = await supabase.from("product_labels").insert(payload).select().single();
     await loadData();
@@ -188,7 +203,7 @@ export default function LabelTab() {
     t += `\n${s.risk_info || ""}\n`;
     if (!isDouble) t += `${s.risk_info_fr || ""}\n`;
     t += `\n${s.company_info || ""}\n`;
-    if (s.sidebar_text) t += `\n---\n${s.sidebar_text}\n`;
+    if (s.side_bar) t += `\n---\n${s.side_bar}\n`;
     if (isDouble) {
       t += `\n\n=== 标签 2 (Français) ===\n\n`;
       t += `UTILISATION RECOMMANDÉE:\n${s.recommended_use_fr || ""}\n`;
@@ -201,7 +216,7 @@ export default function LabelTab() {
     const blob = new Blob([t], { type: "text/plain;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `label_${prod?.product_name || "draft"}.txt`;
+    a.download = `label_${getProdDisplayName(prod) || "draft"}.txt`;
     a.click();
   };
 
@@ -288,13 +303,20 @@ export default function LabelTab() {
                 <button onClick={() => setPreviewMode(false)} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#475569" }}>← 返回</button>
               </div>
             </div>
-            <LabelPreviewV2 label={selected} product={selProd} excipients={excipientMap[selected.product_id] || ""} />
+            <LabelPreviewV2
+              label={selected}
+              product={selProd}
+              excipients={excipientMap[selected.product_id] || ""}
+              medicinalEn={getVal(SECTION_DEFS.find(d => d.key === "medicinal_en"), selected)}
+              medicinalFr={getVal(SECTION_DEFS.find(d => d.key === "medicinal_fr"), selected)}
+              authorizationClaims={getVal(SECTION_DEFS.find(d => d.key === "authorization_claims"), selected)}
+            />
           </div>
         ) : (
           <div style={{ maxWidth: 800, margin: "0 auto", padding: "24px 28px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a" }}>{selProd?.product_name || "标签详情"}</h2>
+                <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a" }}>{getProdDisplayName(selProd) || "标签详情"}</h2>
                 <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
                   {selProd?.npn && `NPN ${selProd.npn} · `}
                   更新于 {new Date(selected.updated_at).toLocaleString("zh-CN")}
@@ -376,7 +398,7 @@ export default function LabelTab() {
                     onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
                     onMouseLeave={e => e.currentTarget.style.background = "#fff"}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>{p.product_name}</div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>{getProdDisplayName(p)}</div>
                       <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.npn && `NPN ${p.npn}`}{p.dosage_form && ` · ${p.dosage_form}`}</div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 
-export default function MedicinalRow({ item, skus, onUpdateSku, onDelete, editing }) {
+export default function MedicinalRow({ item, skus, onUpdateSku, onUpdateCommonName, onDelete, editing }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const ref = useRef(null);
@@ -24,10 +24,24 @@ export default function MedicinalRow({ item, skus, onUpdateSku, onDelete, editin
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1.2 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>{item.common_name}</div>
         {item.amount && <div style={{ fontSize: 11, color: "#64748b" }}>{item.amount}</div>}
       </div>
+      <input
+        value={item.name_en || ""}
+        onChange={e => onUpdateCommonName(item.id, "name_en", e.target.value)}
+        placeholder="Common name EN"
+        disabled={!editing}
+        style={{ width: 130, padding: "4px 7px", fontSize: 11, border: "1px solid #e2e8f0", borderRadius: 6, outline: "none", background: editing ? "#fff" : "#f8fafc", color: "#334155" }}
+      />
+      <input
+        value={item.name_fr || ""}
+        onChange={e => onUpdateCommonName(item.id, "name_fr", e.target.value)}
+        placeholder="Nom commun FR"
+        disabled={!editing}
+        style={{ width: 130, padding: "4px 7px", fontSize: 11, border: "1px solid #e2e8f0", borderRadius: 6, outline: "none", background: editing ? "#fff" : "#f8fafc", color: "#334155" }}
+      />
       <div ref={ref} style={{ position: "relative", width: 190 }}>
         {matched ? (
           <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "4px 8px" }}>

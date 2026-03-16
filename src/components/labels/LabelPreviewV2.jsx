@@ -1,4 +1,4 @@
-export default function LabelPreviewV2({ label, product, excipients }) {
+export default function LabelPreviewV2({ label, product, excipients, medicinalEn, medicinalFr, authorizationClaims }) {
   const s = label;
   const p = product || {};
   const box = { background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0", padding: "24px 28px", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" };
@@ -26,7 +26,10 @@ export default function LabelPreviewV2({ label, product, excipients }) {
         <div style={h}>{fr ? "MISES EN GARDE ET PRÉCAUTIONS" : "CAUTIONS AND WARNINGS"}</div>
         <div style={b}>{fr ? s.cautions_fr : p.caution || "—"}</div>
         <div style={h}>{fr ? "Ingrédients médicinaux" : "Medicinal Ingredients"}</div>
-        <div style={{ ...b, fontFamily: "monospace", fontSize: 12 }}>{fr ? s.medicinal_fr : s.medicinal_en || "—"}</div>
+        <div style={{ ...b, fontFamily: "monospace", fontSize: 12 }}>{fr ? (medicinalFr || "—") : (medicinalEn || "—")}</div>
+        {authorizationClaims && (
+          <div style={{ marginTop: 8, fontSize: 11, color: "#475569", fontStyle: "italic", lineHeight: 1.5 }}>{authorizationClaims}</div>
+        )}
         <div style={h}>{fr ? "Ingrédients non médicinaux" : "Non-Medicinal Ingredients"}</div>
         <div style={b}>{fr ? s.non_medicinal_fr : excipients || "—"}</div>
         <div style={{ marginTop: 16, padding: "10px 12px", background: "#fef3c7", borderRadius: 6, fontSize: 11, color: "#92400e", fontWeight: 500, lineHeight: 1.5 }}>
@@ -34,10 +37,10 @@ export default function LabelPreviewV2({ label, product, excipients }) {
         </div>
         {s.licence_holder && <div style={{ marginTop: 10, fontSize: 11, color: "#64748b" }}>Licence Holder: {s.licence_holder}</div>}
         <div style={{ marginTop: 8, fontSize: 11, color: "#64748b", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{s.company_info || ""}</div>
-        {s.sidebar_text && (
+        {s.side_bar && (
           <div style={{ marginTop: 16, padding: "10px 14px", background: "#f0fdf4", borderRadius: 6, borderLeft: "3px solid #22c55e" }}>
             <div style={{ fontSize: 10, fontWeight: 600, color: "#15803d", marginBottom: 4 }}>FEATURES</div>
-            <div style={{ fontSize: 12, color: "#334155", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{s.sidebar_text}</div>
+            <div style={{ fontSize: 12, color: "#334155", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{s.side_bar}</div>
           </div>
         )}
       </div>

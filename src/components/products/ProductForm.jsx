@@ -51,6 +51,7 @@ export default function ProductForm({ product, brands, skus, allExcipients, onSa
 
   const handleDeleteCommon = (id) => setMedicinal(m => m.filter(r => r.id !== id));
   const handleUpdateSku = (id, skuId) => setMedicinal(m => m.map(r => r.id === id ? { ...r, sku_id: skuId } : r));
+  const handleUpdateCommonName = (id, field, value) => setMedicinal(m => m.map(r => r.id === id ? { ...r, [field]: value } : r));
 
   const handleAddExcipient = () => {
     if (!newExcipient.trim()) return;
@@ -143,7 +144,7 @@ export default function ProductForm({ product, brands, skus, allExcipients, onSa
         {sectionTitle("Medicinal Ingredients")}
         {medicinal.map(item => (
           <MedicinalRow key={item.id} item={item} skus={skus} editing={true}
-            onUpdateSku={handleUpdateSku} onDelete={handleDeleteCommon} />
+            onUpdateSku={handleUpdateSku} onUpdateCommonName={handleUpdateCommonName} onDelete={handleDeleteCommon} />
         ))}
         <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
           <input value={newCommon} onChange={e => setNewCommon(e.target.value)}
