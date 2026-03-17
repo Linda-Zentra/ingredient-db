@@ -101,16 +101,38 @@ export default function LabelTab() {
 
       case "medicinal_en": {
         const ingredients = prod?.product_medicinal_ingredients || [];
-        return ingredients
-          .map(pmi => [pmi.common_ingredients?.name_en, pmi.amount].filter(Boolean).join("  "))
+        const toMcg = (pmi) => {
+          const v = parseFloat(pmi.amount_value) || 0;
+          const u = (pmi.amount_unit || "").toLowerCase().trim();
+          return u === "mcg" ? v : v * 1000;
+        };
+        const fmtAmount = (pmi) => {
+          const a1 = pmi.amount_value && pmi.amount_unit ? `${pmi.amount_value} ${pmi.amount_unit}` : null;
+          const a2 = pmi.amount_value2 && pmi.amount_unit2 ? `${pmi.amount_value2} ${pmi.amount_unit2}` : null;
+          return [a1, a2].filter(Boolean).join(" ");
+        };
+        return [...ingredients]
+          .sort((a, b) => toMcg(b) - toMcg(a))
+          .map(pmi => [pmi.common_ingredients?.name_en, fmtAmount(pmi)].filter(Boolean).join("  "))
           .filter(Boolean)
           .join("\n") || "";
       }
 
       case "medicinal_fr": {
         const ingredients = prod?.product_medicinal_ingredients || [];
-        return ingredients
-          .map(pmi => [pmi.common_ingredients?.name_fr, pmi.amount].filter(Boolean).join("  "))
+        const toMcg = (pmi) => {
+          const v = parseFloat(pmi.amount_value) || 0;
+          const u = (pmi.amount_unit || "").toLowerCase().trim();
+          return u === "mcg" ? v : v * 1000;
+        };
+        const fmtAmount = (pmi) => {
+          const a1 = pmi.amount_value && pmi.amount_unit ? `${pmi.amount_value} ${pmi.amount_unit}` : null;
+          const a2 = pmi.amount_value2 && pmi.amount_unit2 ? `${pmi.amount_value2} ${pmi.amount_unit2}` : null;
+          return [a1, a2].filter(Boolean).join(" ");
+        };
+        return [...ingredients]
+          .sort((a, b) => toMcg(b) - toMcg(a))
+          .map(pmi => [pmi.common_ingredients?.name_fr, fmtAmount(pmi)].filter(Boolean).join("  "))
           .filter(Boolean)
           .join("\n") || "";
       }
