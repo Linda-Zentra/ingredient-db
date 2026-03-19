@@ -1,4 +1,4 @@
-export default function LabelPreviewV2({ label, product, excipients, medicinalEn, medicinalFr, authorizationClaims }) {
+export default function LabelPreviewV2({ label, product, productName, excipients, medicinalEn, medicinalFr, authorizationClaims }) {
   const s = label;
   const p = product || {};
   const box = { background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0", padding: "24px 28px", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" };
@@ -15,7 +15,7 @@ export default function LabelPreviewV2({ label, product, excipients, medicinalEn
           </div>
         )}
         <div style={{ textAlign: "center", marginBottom: 12 }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{p.product_name || ""}</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{productName || ""}</h2>
           {s.subtitle && <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{s.subtitle}</div>}
           {s.spec && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{s.spec}</div>}
         </div>
