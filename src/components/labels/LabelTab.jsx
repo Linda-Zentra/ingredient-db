@@ -328,6 +328,7 @@ export default function LabelTab() {
             <LabelPreviewV2
               label={selected}
               product={selProd}
+              productName={getProdDisplayName(selProd)}
               excipients={excipientMap[selected.product_id] || ""}
               medicinalEn={getVal(SECTION_DEFS.find(d => d.key === "medicinal_en"), selected)}
               medicinalFr={getVal(SECTION_DEFS.find(d => d.key === "medicinal_fr"), selected)}
