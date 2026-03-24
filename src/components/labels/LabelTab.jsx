@@ -157,7 +157,6 @@ export default function LabelTab() {
 
 
   const handleCreate = async (productId) => {
-    const prod = products.find(p => p.id === productId);
     const payload = {
       product_id: productId, label_type: "single", subtitle: "",
       recommended_use_fr: "", recommended_dose_fr: "", cautions_fr: "",
@@ -212,11 +211,11 @@ export default function LabelTab() {
     t += `1: ${getVal(SECTION_DEFS.find(d => d.key === "product_name"), s)}\n`;
     t += `2: ${s.subtitle || ""}\n`;
     t += `3: ${getVal(SECTION_DEFS.find(d => d.key === "spec"), s)}\n\n`;
-    t += `RECOMMENDED USE:\n${prod?.recommended_use || ""}\n`;
+    t += `RECOMMENDED USE:\n${selected?.recommended_use || ""}\n`;
     if (!isDouble) t += `\nUTILISATION RECOMMANDÉE:\n${s.recommended_use_fr || ""}\n`;
     t += `\nRECOMMENDED DOSE:\n${getVal(SECTION_DEFS.find(d => d.key === "recommended_dose"), s)}\n`;
     if (!isDouble) t += `\nDOSE RECOMMANDÉE:\n${s.recommended_dose_fr || ""}\n`;
-    t += `\nCAUTIONS:\n${prod?.caution || ""}\n`;
+    t += `\nCAUTIONS:\n${s.caution || ""}\n`;
     if (!isDouble) t += `\nMISES EN GARDE:\n${s.cautions_fr || ""}\n`;
     t += `\nMedicinal Ingredients:\n${getVal(SECTION_DEFS.find(d => d.key === "medicinal_en"), s)}\n`;
     if (!isDouble) t += `\nIngrédients médicinaux:\n${s.medicinal_fr || ""}\n`;

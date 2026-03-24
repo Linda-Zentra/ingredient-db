@@ -62,6 +62,24 @@ export const TABLE_COLS = [
 ];
 
 // ============================================================
+// 剂型选项（来自 Health Canada 常见值）
+// ============================================================
+export const DOSAGE_FORM_TYPES = [
+  "Capsule", "Tablet", "Softgel", "Liquid", "Powder",
+  "Gummy", "Chewable tablet", "Cream", "Gel", "Spray", "Tincture",
+];
+
+export const DOSAGE_FORM_SUBTYPES = {
+  Capsule:  ["Hard", "Soft"],
+  Tablet:   ["Film-coated", "Enteric-coated", "Chewable"],
+  Softgel:  [],
+  Liquid:   [],
+  Powder:   [],
+  Gummy:    [],
+  default:  [],
+};
+
+// ============================================================
 // 状态配置
 // ============================================================
 export const STATUS_CONFIG = {
@@ -80,7 +98,7 @@ export const SECTION_DEFS = [
   { key: "product_name",        label: "1. 产品名称",                 source: "computed" },
   { key: "subtitle",            label: "2. 副标题 / 功能声明",         source: "label" },
   { key: "spec",                label: "3. 规格 & NPN",               source: "computed" },
-  { key: "recommended_use",     label: "4. Recommended Use",          source: "product", field: "recommended_use" },
+  { key: "recommended_use",     label: "4. Recommended Use",          source: "label" },
   { key: "recommended_use_fr",  label: "4b. Utilisation Recommandée", source: "label", fr: true },
   { key: "recommended_dose",    label: "5. Recommended Dose",         source: "computed" },
   { key: "recommended_dose_fr", label: "5b. Dose Recommandée",        source: "label", fr: true },

@@ -26,7 +26,7 @@ export default function MedicinalRow({ item, skus, onUpdateSku, onUpdateCommonNa
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
       <div style={{ flex: 1.2 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>{item.common_name}</div>
-        {item.amount && <div style={{ fontSize: 11, color: "#64748b" }}>{item.amount}</div>}
+        {item.amount_value && <div style={{ fontSize: 11, color: "#64748b" }}>{item.amount_value} {item.amount_unit || ""}</div>}
       </div>
       <input
         value={item.name_en || ""}
