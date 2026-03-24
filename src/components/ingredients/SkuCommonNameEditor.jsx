@@ -5,18 +5,14 @@ import CommonNamePicker from "./CommonNamePicker";
 export default function SkuCommonNameEditor({ skuId, currentCommonId, commonIngredients, onSave }) {
   const [editing, setEditing] = useState(false);
   const [selectedId, setSelectedId] = useState(currentCommonId);
-  const [saving, setSaving] = useState(false);
-
   const current = commonIngredients.find(c => c.id === selectedId);
 
   const handleSave = async (newId) => {
-    setSaving(true);
     try {
-      await supabase.from("skus").update(skuId, { common_ingredient_id: newId });
+      await supabase.from("skus").update({ common_ingredient_id: newId }).eq("id", skuId);
       setSelectedId(newId);
       onSave?.(newId);
     } catch (e) { alert("保存失败: " + e.message); }
-    setSaving(false);
     setEditing(false);
   };
 

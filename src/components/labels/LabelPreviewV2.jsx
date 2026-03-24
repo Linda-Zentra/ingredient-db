@@ -20,11 +20,11 @@ export default function LabelPreviewV2({ label, product, productName, excipients
           {s.spec && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{s.spec}</div>}
         </div>
         <div style={h}>{fr ? "UTILISATION RECOMMANDÉE" : "RECOMMENDED USE"}</div>
-        <div style={b}>{fr ? s.recommended_use_fr : p.recommended_use || "—"}</div>
+        <div style={b}>{fr ? s.recommended_use_fr : s.recommended_use || "—"}</div>
         <div style={h}>{fr ? "DOSE RECOMMANDÉE (ADULTES)" : "RECOMMENDED DOSE (ADULTS)"}</div>
         <div style={b}>{fr ? s.recommended_dose_fr : p.recommended_dose || "—"}</div>
         <div style={h}>{fr ? "MISES EN GARDE ET PRÉCAUTIONS" : "CAUTIONS AND WARNINGS"}</div>
-        <div style={b}>{fr ? s.cautions_fr : p.caution || "—"}</div>
+        <div style={b}>{fr ? s.cautions_fr : s.caution || "—"}</div>
         <div style={h}>{fr ? "Ingrédients médicinaux" : "Medicinal Ingredients"}</div>
         <div style={{ ...b, fontFamily: "monospace", fontSize: 12 }}>{fr ? (medicinalFr || "—") : (medicinalEn || "—")}</div>
         {authorizationClaims && (

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import Field, { inputStyle as iS } from "../ui/Field";
 import MedicinalRow from "./MedicinalRow";
+import { DOSAGE_FORM_TYPES, DOSAGE_FORM_SUBTYPES } from "../../constants";
 
-export default function ProductForm({ product, brands, skus, allExcipients, onSave, onDelete, onClose }) {
+export default function ProductForm({ product, skus, allExcipients, onSave, onDelete, onClose }) {
   const isEdit = !!product;
 
   // 找当前 default brand 的 id（product_brands 表里的 id，不是 brand_id）
@@ -12,13 +13,10 @@ export default function ProductForm({ product, brands, skus, allExcipients, onSa
     null;
 
   const [form, setForm] = useState({
-    product_name:        product?.product_name        || "",
     product_name_zh:     product?.product_name_zh     || "",
-    primary_brand_id:    product?.primary_brand_id    || "",
     npn:                 product?.npn                 || "",
     licensing_status:    product?.licensing_status    || "not_started",
     is_marketed:         product?.is_marketed         || false,
-    dosage_form:         product?.dosage_form         || "",
     dosage_form_type:    product?.dosage_form_type    || "",
     dosage_form_subtype: product?.dosage_form_subtype || "",
     dose_amount:         product?.dose_amount         ?? "",
@@ -29,6 +27,8 @@ export default function ProductForm({ product, brands, skus, allExcipients, onSa
     dose_freq_unit:      product?.dose_freq_unit      || "",
     recommended_use:     product?.recommended_use     || "",
     caution:             product?.caution             || "",
+    dose_population:     product?.dose_population     || "",
+    dose_min_age:        product?.dose_min_age        ?? "",
     price_cad:           product?.price_cad           ?? "",
     price_usd:           product?.price_usd           ?? "",
     notes:               product?.notes               || "",
@@ -45,7 +45,7 @@ export default function ProductForm({ product, brands, skus, allExcipients, onSa
 
   const handleAddCommon = () => {
     if (!newCommon.trim()) return;
-    setMedicinal(m => [...m, { id: `new-${Date.now()}`, common_name: newCommon.trim(), amount: "", sku_id: null, isNew: true }]);
+    setMedicinal(m => [...m, { id: `new-${Date.now()}`, common_name: newCommon.trim(), amount_value: null, amount_unit: null, sku_id: null, isNew: true }]);
     setNewCommon("");
   };
 
@@ -65,12 +65,7 @@ export default function ProductForm({ product, brands, skus, allExcipients, onSa
   const handleSubmit = async () => {
     setSaving(true);
     try {
-      // 新增时若 product_name 空，用所选品牌名作为产品名
-      const resolvedForm = { ...form };
-      if (!resolvedForm.product_name.trim()) {
-        resolvedForm.product_name = brands.find(b => b.id === parseInt(form.primary_brand_id))?.name || "Product";
-      }
-      await onSave(isEdit ? product.id : null, resolvedForm, medicinal, excipients, defaultBrandId);
+      await onSave(isEdit ? product.id : null, form, medicinal, excipients, defaultBrandId);
       onClose();
     } catch (e) { alert("保存失败: " + e.message); }
     setSaving(false);
@@ -89,7 +84,7 @@ export default function ProductForm({ product, brands, skus, allExcipients, onSa
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a" }}>{isEdit ? "编辑产品" : "新增产品"}</h2>
           <div style={{ display: "flex", gap: 8 }}>
             {isEdit && (
-              <button onClick={() => { if (confirm(`确定删除「${product.product_name}」？`)) { onDelete(product.id); onClose(); } }}
+              <button onClick={() => { if (confirm(`确定删除「${product.product_name_zh || "此产品"}」？`)) { onDelete(product.id); onClose(); } }}
                 style={{ padding: "6px 12px", fontSize: 12, border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>删除</button>
             )}
             <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8" }}>×</button>
@@ -112,11 +107,7 @@ export default function ProductForm({ product, brands, skus, allExcipients, onSa
                   ))}
                 </select>
               ) : (
-                // 新增产品时 product_brands 还没有，显示全部 brands 供参考
-                <select value={form.primary_brand_id} onChange={e => f("primary_brand_id", e.target.value)} style={iS}>
-                  <option value="">选择品牌</option>
-                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
+                <div style={{ ...iS, color: "#94a3b8" }}>保存后在此选择默认品牌</div>
               )}
             </Field>
             <Field label="NPN" style={{ flex: 1 }}>
@@ -188,15 +179,22 @@ export default function ProductForm({ product, brands, skus, allExcipients, onSa
           </Field>
           <div style={{ display: "flex", gap: 10 }}>
             <Field label="Dosage Form Type" style={{ flex: 1 }}>
-              <input value={form.dosage_form_type} onChange={e => f("dosage_form_type", e.target.value)} style={iS} placeholder="Capsule" />
+              <select value={form.dosage_form_type} onChange={e => { f("dosage_form_type", e.target.value); f("dosage_form_subtype", ""); }} style={iS}>
+                <option value="">—</option>
+                {DOSAGE_FORM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </Field>
             <Field label="Subtype" style={{ flex: 1 }}>
-              <input value={form.dosage_form_subtype} onChange={e => f("dosage_form_subtype", e.target.value)} style={iS} placeholder="hard" />
+              {(DOSAGE_FORM_SUBTYPES[form.dosage_form_type] ?? []).length > 0 ? (
+                <select value={form.dosage_form_subtype} onChange={e => f("dosage_form_subtype", e.target.value)} style={iS}>
+                  <option value="">—</option>
+                  {(DOSAGE_FORM_SUBTYPES[form.dosage_form_type] ?? []).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              ) : (
+                <input value={form.dosage_form_subtype} onChange={e => f("dosage_form_subtype", e.target.value)} style={iS} placeholder="—" />
+              )}
             </Field>
           </div>
-          <Field label="Dosage Form">
-            <input value={form.dosage_form} onChange={e => f("dosage_form", e.target.value)} style={iS} placeholder="Capsule, hard" />
-          </Field>
         </div>
 
         {/* 剂量 — 用于自动生成 Recommended Dose 文案 */}
@@ -222,6 +220,14 @@ export default function ProductForm({ product, brands, skus, allExcipients, onSa
             </Field>
             <Field label="Freq Unit" style={{ flex: 2 }}>
               <input value={form.dose_freq_unit} onChange={e => f("dose_freq_unit", e.target.value)} style={iS} placeholder="per day" />
+            </Field>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Field label="适用人群 (Population)" style={{ flex: 2 }}>
+              <input value={form.dose_population} onChange={e => f("dose_population", e.target.value)} style={iS} placeholder="Adults" />
+            </Field>
+            <Field label="最小年龄" style={{ flex: 1 }}>
+              <input value={form.dose_min_age} onChange={e => f("dose_min_age", e.target.value)} style={iS} placeholder="18" type="number" />
             </Field>
           </div>
         </div>
