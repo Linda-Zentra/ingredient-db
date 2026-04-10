@@ -38,7 +38,7 @@ export default function IngredientTab() {
     try {
       setLoading(true);
       // 5个请求 → 2个，skus 直接 JOIN supplier 和 functions
-      const [{ data: skuData, error: e1 }, { data: catData, error: e2 }, { data: commonData, error: e3 }] = await Promise.all([
+      const [{ data: skuData, error: e1 }, { data: catData, error: e2 }, { data: commonData, error: e3 }, { data: suppData, error: e4 }] = await Promise.all([
         supabase.from("skus").select(`
           *,
           suppliers(*),
@@ -46,14 +46,13 @@ export default function IngredientTab() {
         `),
         supabase.from("function_categories").select("*"),
         supabase.from("common_ingredients").select("*"),
+        supabase.from("suppliers").select("*").order("supplier_name"),
       ]);
-      if (e1 || e2 || e3) throw new Error((e1 || e2 || e3).message);
+      if (e1 || e2 || e3 || e4) throw new Error((e1 || e2 || e3 || e4).message);
 
       setCategories(catData);
       setCommonIngredients(commonData);
-      const suppMap = {};
-      skuData.forEach(s => { if (s.suppliers) suppMap[s.suppliers.id] = s.suppliers; });
-      setSuppliers(Object.values(suppMap));
+      setSuppliers(suppData || []);
 
       setData(skuData.map(sku => ({
         ...sku,
