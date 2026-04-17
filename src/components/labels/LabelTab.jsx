@@ -289,7 +289,7 @@ export default function LabelTab() {
     const q = search.toLowerCase().trim();
     return labels.map(l => {
       const prod = products.find(p => p.id === l.product_id);
-      return { ...l, _prodName: getProdDisplayName(prod), _npn: prod?.npn || "" };
+      return { ...l, _prodName: getProdDisplayName(prod), _npn: prod?.npn ? String(prod.npn) : "" };
     }).filter(l => {
       if (!q) return true;
       return l._prodName.toLowerCase().includes(q) || l._npn.includes(q) || (l.subtitle || "").toLowerCase().includes(q);
