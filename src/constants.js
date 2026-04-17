@@ -102,7 +102,7 @@ export const SECTION_DEFS = [
   { key: "recommended_use_fr",  label: "4b. Utilisation Recommandée", source: "label", fr: true },
   { key: "recommended_dose",    label: "5. Recommended Dose",         source: "computed" },
   { key: "recommended_dose_fr", label: "5b. Dose Recommandée",        source: "label", fr: true },
-  { key: "cautions",            label: "6. Cautions & Warnings",      source: "product", field: "caution" },
+  { key: "caution",             label: "6. Cautions & Warnings",      source: "label" },
   { key: "cautions_fr",         label: "6b. Mises en garde",          source: "label", fr: true },
   { key: "medicinal_en",        label: "7. Medicinal Ingredients",    source: "computed" },
   { key: "medicinal_fr",        label: "7b. Ingrédients Médicinaux",  source: "computed", fr: true },
@@ -123,6 +123,10 @@ export const DEFAULT_COMPANY = `Distributor / Distributeur\nNutrizen Station Lab
 export const DEFAULT_RISK = "KEEP OUT OF REACH OF CHILDREN. DO NOT USE IF SEAL UNDER CAP IS BROKEN. STORE IN A COOL, DARK AND DRY PLACE.";
 
 export const DEFAULT_RISK_FR = "GARDER HORS DE LA PORTÉE DES ENFANTS. NE PAS UTILISER SI LE SCEAU SOUS LE BOUCHON EST BRISÉ. CONSERVER DANS UN ENDROIT FRAIS, SOMBRE ET SEC.";
+
+export const DEFAULT_FDA_DISCLAIMER = "*These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease.";
+
+export const DEFAULT_STORAGE_US = "Store in a cool, dark, and dry place at room temperature.";
 
 // ============================================================
 // 预设颜色（分类管理用）
