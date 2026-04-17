@@ -1,13 +1,15 @@
 import { useState, useMemo, useEffect } from "react";
 import supabase from "../../lib/supabase";
-import { SECTION_DEFS, DEFAULT_COMPANY, DEFAULT_RISK, DEFAULT_RISK_FR } from "../../constants";
+import { SECTION_DEFS, DEFAULT_COMPANY, DEFAULT_RISK, DEFAULT_RISK_FR, DEFAULT_FDA_DISCLAIMER } from "../../constants";
 import Loading from "../ui/Loading";
 import LabelPreviewV2 from "./LabelPreviewV2";
+import { sortMedicinalIngredients } from "../../lib/ingredientFormatters";
 
 export default function LabelTab() {
   const [labels, setLabels] = useState([]);
   const [products, setProducts] = useState([]);
   const [excipientMap, setExcipientMap] = useState({});
+  const [excipientRowsMap, setExcipientRowsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -34,8 +36,8 @@ export default function LabelTab() {
         supabase.from("products").select(`
           *,
           product_brands(*),
-          product_excipients(*, excipients(name)),
-          product_medicinal_ingredients(*, common_ingredients(name_en, name_fr), skus(authorization_claims)),
+          product_excipients(*, excipients(name, name_fr, allergen_types)),
+          product_medicinal_ingredients(*, common_ingredients(scientific_name, name_en, name_fr, allergen_types), skus(authorization_claims)),
           product_ingredients(*, skus(authorization_claims))
           `),
         
@@ -52,6 +54,13 @@ export default function LabelTab() {
         if (names.length) excMap[p.id] = names.join(", ");
       });
       setExcipientMap(excMap);
+
+      // Raw excipient rows for structured rendering
+      const excRowsMap = {};
+      prods.forEach(p => {
+        if (p.product_excipients?.length) excRowsMap[p.id] = p.product_excipients;
+      });
+      setExcipientRowsMap(excRowsMap);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -101,18 +110,12 @@ export default function LabelTab() {
 
       case "medicinal_en": {
         const ingredients = prod?.product_medicinal_ingredients || [];
-        const toMcg = (pmi) => {
-          const v = parseFloat(pmi.amount_value) || 0;
-          const u = (pmi.amount_unit || "").toLowerCase().trim();
-          return u === "mcg" ? v : v * 1000;
-        };
         const fmtAmount = (pmi) => {
           const a1 = pmi.amount_value && pmi.amount_unit ? `${pmi.amount_value} ${pmi.amount_unit}` : null;
           const a2 = pmi.amount_value2 && pmi.amount_unit2 ? `${pmi.amount_value2} ${pmi.amount_unit2}` : null;
           return [a1, a2].filter(Boolean).join(" ");
         };
-        return [...ingredients]
-          .sort((a, b) => toMcg(b) - toMcg(a))
+        return sortMedicinalIngredients(ingredients)
           .map(pmi => [pmi.common_ingredients?.name_en, fmtAmount(pmi)].filter(Boolean).join("  "))
           .filter(Boolean)
           .join("\n") || "";
@@ -120,18 +123,12 @@ export default function LabelTab() {
 
       case "medicinal_fr": {
         const ingredients = prod?.product_medicinal_ingredients || [];
-        const toMcg = (pmi) => {
-          const v = parseFloat(pmi.amount_value) || 0;
-          const u = (pmi.amount_unit || "").toLowerCase().trim();
-          return u === "mcg" ? v : v * 1000;
-        };
         const fmtAmount = (pmi) => {
           const a1 = pmi.amount_value && pmi.amount_unit ? `${pmi.amount_value} ${pmi.amount_unit}` : null;
           const a2 = pmi.amount_value2 && pmi.amount_unit2 ? `${pmi.amount_value2} ${pmi.amount_unit2}` : null;
           return [a1, a2].filter(Boolean).join(" ");
         };
-        return [...ingredients]
-          .sort((a, b) => toMcg(b) - toMcg(a))
+        return sortMedicinalIngredients(ingredients)
           .map(pmi => [pmi.common_ingredients?.name_fr, fmtAmount(pmi)].filter(Boolean).join("  "))
           .filter(Boolean)
           .join("\n") || "";
@@ -198,8 +195,12 @@ export default function LabelTab() {
   const handleDuplicate = async (label) => {
     const { id, created_at, updated_at, _prodName, _npn, ...rest } = label;
     rest.subtitle = (rest.subtitle || "") + " (副本)";
-    await supabase.from("product_labels").insert(rest);
+    const { data: newLabel, error } = await supabase.from("product_labels").insert(rest).select().single();
+    if (error) { alert("复制失败: " + error.message); return; }
     await loadData();
+    setSelected(newLabel);
+    setEditing(false);
+    setPreviewMode(false);
   };
 
   const handleExport = () => {
@@ -207,38 +208,81 @@ export default function LabelTab() {
     const prod = getProduct(selected);
     const s = selected;
     const isDouble = s.label_type === "double";
-    let t = `=== ${isDouble ? "标签 1 (English)" : "单标签 (EN/FR)"} ===\n\n`;
+    const isFDA = s.label_type === "us_fda";
+    const includeFr = !isDouble && !isFDA;
+
+    let t = isFDA
+      ? `=== FDA / US Label ===\n\n`
+      : `=== ${isDouble ? "标签 1 (English)" : "单标签 (EN/FR)"} ===\n\n`;
     t += `1: ${getVal(SECTION_DEFS.find(d => d.key === "product_name"), s)}\n`;
     t += `2: ${s.subtitle || ""}\n`;
-    t += `3: ${getVal(SECTION_DEFS.find(d => d.key === "spec"), s)}\n\n`;
-    t += `RECOMMENDED USE:\n${selected?.recommended_use || ""}\n`;
-    if (!isDouble) t += `\nUTILISATION RECOMMANDÉE:\n${s.recommended_use_fr || ""}\n`;
-    t += `\nRECOMMENDED DOSE:\n${getVal(SECTION_DEFS.find(d => d.key === "recommended_dose"), s)}\n`;
-    if (!isDouble) t += `\nDOSE RECOMMANDÉE:\n${s.recommended_dose_fr || ""}\n`;
-    t += `\nCAUTIONS:\n${s.caution || ""}\n`;
-    if (!isDouble) t += `\nMISES EN GARDE:\n${s.cautions_fr || ""}\n`;
-    t += `\nMedicinal Ingredients:\n${getVal(SECTION_DEFS.find(d => d.key === "medicinal_en"), s)}\n`;
-    if (!isDouble) t += `\nIngrédients médicinaux:\n${s.medicinal_fr || ""}\n`;
-    t += `\nNon-Medicinal:\n${excipientMap[s.product_id] || ""}\n`;
-    if (!isDouble) t += `\nIngrédients non médicinaux:\n${s.non_medicinal_fr || ""}\n`;
-    t += `\n${s.risk_info || ""}\n`;
-    if (!isDouble) t += `${s.risk_info_fr || ""}\n`;
-    t += `\n${s.company_info || ""}\n`;
-    if (s.side_bar) t += `\n---\n${s.side_bar}\n`;
-    if (isDouble) {
-      t += `\n\n=== 标签 2 (Français) ===\n\n`;
-      t += `UTILISATION RECOMMANDÉE:\n${s.recommended_use_fr || ""}\n`;
-      t += `\nDOSE RECOMMANDÉE:\n${s.recommended_dose_fr || ""}\n`;
-      t += `\nMISES EN GARDE:\n${s.cautions_fr || ""}\n`;
-      t += `\nIngrédients médicinaux:\n${s.medicinal_fr || ""}\n`;
-      t += `\nIngrédients non médicinaux:\n${s.non_medicinal_fr || ""}\n`;
-      t += `\n${s.risk_info_fr || ""}\n`;
+    if (!isFDA) t += `3: ${getVal(SECTION_DEFS.find(d => d.key === "spec"), s)}\n`;
+    t += "\n";
+
+    if (isFDA) {
+      t += `HEALTH CLAIMS:\n${s.recommended_use || ""}\n`;
+      t += `\nSUGGESTED DOSE (ADULTS):\n${getVal(SECTION_DEFS.find(d => d.key === "recommended_dose"), s)}\n`;
+      t += `\nCAUTIONS:\n${[s.caution, s.risk_info].filter(Boolean).join("\n") || ""}\n`;
+      t += `\nSupplement Facts\n`;
+      t += `Serving Size: ${s.serving_size || "1 Capsule"}\n`;
+      t += `\nMedicinal Ingredients (Amount Per Serving / %DV):\n${getVal(SECTION_DEFS.find(d => d.key === "medicinal_en"), s)}\n`;
+      t += `† Daily Value not Established.\n`;
+      t += `\nOther Ingredients:\n${excipientMap[s.product_id] || ""}\n`;
+      t += `\n*These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease.\n`;
+      t += `\nDistributor:\n${s.company_info || ""}\n`;
+    } else {
+      t += `RECOMMENDED USE:\n${s.recommended_use || ""}\n`;
+      if (includeFr) t += `\nUTILISATION RECOMMANDÉE:\n${s.recommended_use_fr || ""}\n`;
+      t += `\nRECOMMENDED DOSE:\n${getVal(SECTION_DEFS.find(d => d.key === "recommended_dose"), s)}\n`;
+      if (includeFr) t += `\nDOSE RECOMMANDÉE:\n${s.recommended_dose_fr || ""}\n`;
+      t += `\nCAUTIONS:\n${s.caution || ""}\n`;
+      if (includeFr) t += `\nMISES EN GARDE:\n${s.cautions_fr || ""}\n`;
+      t += `\nMedicinal Ingredients:\n${getVal(SECTION_DEFS.find(d => d.key === "medicinal_en"), s)}\n`;
+      if (includeFr) t += `\nIngrédients médicinaux:\n${s.medicinal_fr || ""}\n`;
+      t += `\nNon-Medicinal:\n${excipientMap[s.product_id] || ""}\n`;
+      if (includeFr) t += `\nIngrédients non médicinaux:\n${s.non_medicinal_fr || ""}\n`;
+      t += `\n${s.risk_info || ""}\n`;
+      if (includeFr) t += `${s.risk_info_fr || ""}\n`;
+      t += `\n${s.company_info || ""}\n`;
+      if (s.side_bar) t += `\n---\n${s.side_bar}\n`;
+      if (isDouble) {
+        t += `\n\n=== 标签 2 (Français) ===\n\n`;
+        t += `UTILISATION RECOMMANDÉE:\n${s.recommended_use_fr || ""}\n`;
+        t += `\nDOSE RECOMMANDÉE:\n${s.recommended_dose_fr || ""}\n`;
+        t += `\nMISES EN GARDE:\n${s.cautions_fr || ""}\n`;
+        t += `\nIngrédients médicinaux:\n${s.medicinal_fr || ""}\n`;
+        t += `\nIngrédients non médicinaux:\n${s.non_medicinal_fr || ""}\n`;
+        t += `\n${s.risk_info_fr || ""}\n`;
+      }
     }
+
     const blob = new Blob([t], { type: "text/plain;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `label_${getProdDisplayName(prod) || "draft"}.txt`;
     a.click();
+  };
+
+  const handleRefresh = async () => {
+    const prod = getProduct(selected);
+    const npnNum = parseInt(prod?.npn);
+    if (!npnNum || isNaN(npnNum)) return alert("该产品没有有效的 NPN，无法刷新");
+    if (!confirm(`确定从 Health Canada 重新导入 NPN ${npnNum} 的数据？`)) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.functions.invoke("import-npn", {
+        body: { npns: [npnNum] },
+      });
+      if (error) throw error;
+      await loadData();
+      // Re-select to get updated data
+      const { data: refreshed } = await supabase.from("product_labels").select("*").eq("id", selected.id).single();
+      setSelected(refreshed || selected);
+      alert("刷新成功！数据已从 Health Canada 更新。");
+    } catch (e) {
+      alert("刷新失败: " + (e.message || e));
+    }
+    setSaving(false);
   };
 
   const filteredLabels = useMemo(() => {
@@ -286,8 +330,10 @@ export default function LabelTab() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l._prodName || "未知产品"}</div>
                 <div style={{ display: "flex", gap: 6, marginTop: 3, fontSize: 11, color: "#64748b", alignItems: "center" }}>
-                  <span style={{ padding: "1px 6px", borderRadius: 4, background: l.label_type === "double" ? "#fef3c7" : "#dbeafe", color: l.label_type === "double" ? "#92400e" : "#1e40af" }}>
-                    {l.label_type === "double" ? "双标签" : "单标签"}
+                  <span style={{ padding: "1px 6px", borderRadius: 4,
+                    background: l.label_type === "double" ? "#fef3c7" : l.label_type === "us_fda" ? "#fee2e2" : "#dbeafe",
+                    color: l.label_type === "double" ? "#92400e" : l.label_type === "us_fda" ? "#991b1b" : "#1e40af" }}>
+                    {l.label_type === "double" ? "双标签" : l.label_type === "us_fda" ? "🇺🇸 FDA" : "单标签"}
                   </span>
                   {l._npn && <span>NPN {l._npn}</span>}
                 </div>
@@ -329,6 +375,8 @@ export default function LabelTab() {
               product={selProd}
               productName={getProdDisplayName(selProd)}
               excipients={excipientMap[selected.product_id] || ""}
+              excipientRows={excipientRowsMap[selected.product_id] || []}
+              ingredients={sortMedicinalIngredients(selProd?.product_medicinal_ingredients || [])}
               medicinalEn={getVal(SECTION_DEFS.find(d => d.key === "medicinal_en"), selected)}
               medicinalFr={getVal(SECTION_DEFS.find(d => d.key === "medicinal_fr"), selected)}
               authorizationClaims={getVal(SECTION_DEFS.find(d => d.key === "authorization_claims"), selected)}
@@ -349,6 +397,7 @@ export default function LabelTab() {
                   <>
                     <button onClick={() => setPreviewMode(true)} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#475569" }}>👁️ 预览</button>
                     <button onClick={handleExport} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#475569" }}>📥 导出</button>
+                    <button onClick={handleRefresh} disabled={saving} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: saving ? "wait" : "pointer", color: "#475569" }}>🔄 刷新HC</button>
                     <button onClick={() => setEditing(true)} style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 6, background: "#3b82f6", color: "#fff", cursor: "pointer", fontWeight: 600 }}>✏️ 编辑</button>
                   </>
                 ) : (
@@ -364,8 +413,15 @@ export default function LabelTab() {
               <div style={{ marginBottom: 16, display: "flex", gap: 8, alignItems: "center" }}>
                 <span style={{ fontSize: 12, color: "#64748b" }}>标签类型:</span>
                 <div style={{ display: "flex", background: "#f1f5f9", borderRadius: 6, padding: 2 }}>
-                  {[{ v: "single", l: "单标签" }, { v: "double", l: "双标签" }].map(t => (
-                    <button key={t.v} onClick={() => setForm(f => ({ ...f, label_type: t.v }))} style={{
+                  {[{ v: "single", l: "单标签" }, { v: "double", l: "双标签" }, { v: "us_fda", l: "🇺🇸 美标 FDA" }].map(t => (
+                    <button key={t.v} onClick={() => setForm(f => {
+                      const next = { ...f, label_type: t.v };
+                      // 切换到 FDA 时自动填充免责声明（如果当前是加拿大默认或空）
+                      if (t.v === "us_fda" && (!f.risk_info || f.risk_info === DEFAULT_RISK)) {
+                        next.risk_info = DEFAULT_FDA_DISCLAIMER;
+                      }
+                      return next;
+                    })} style={{
                       padding: "4px 12px", fontSize: 11, border: "none", borderRadius: 4, cursor: "pointer",
                       background: (form.label_type || "single") === t.v ? "#fff" : "transparent",
                       color: (form.label_type || "single") === t.v ? "#0f172a" : "#94a3b8",
@@ -377,25 +433,46 @@ export default function LabelTab() {
               </div>
             )}
 
-            {SECTION_DEFS.map(sec => {
-              const val = editing && sec.source === "label" ? form[sec.key] : getVal(sec, selected);
-              const isEditable = editing && sec.source === "label";
-              return (
-                <div key={sec.key} style={{ marginBottom: 12, background: sectionBg(sec), borderRadius: 8, padding: "12px 16px", border: "1px solid #e2e8f0" }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
-                    <span>{sec.label}</span>
-                    {sec.source === "product" && <span style={{ color: "#86efac", fontSize: 10 }}>来自产品管理</span>}
-                    {sec.source === "computed" && <span style={{ color: "#86efac", fontSize: 10 }}>自动计算</span>}
-                  </div>
-                  {isEditable ? (
-                    <textarea value={val} onChange={e => setForm(f => ({ ...f, [sec.key]: e.target.value }))} rows={3}
-                      style={{ width: "100%", padding: "6px 8px", fontSize: 13, border: "1px solid #cbd5e1", borderRadius: 5, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", lineHeight: 1.6 }} />
-                  ) : (
-                    <div style={{ fontSize: 13, color: val ? "#1e293b" : "#cbd5e1", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{val || "（空）"}</div>
-                  )}
-                </div>
-              );
-            })}
+            {(() => {
+              const currentType = editing ? (form.label_type || "single") : (selected.label_type || "single");
+              const isFDA = currentType === "us_fda";
+
+              // FDA 模式下隐藏的 key
+              const fdaHidden = new Set(["recommended_use_fr", "recommended_dose_fr", "cautions_fr", "medicinal_fr", "non_medicinal_fr", "risk_info_fr", "licence_holder"]);
+
+              // FDA 模式下 section 标题重命名
+              const fdaLabels = {
+                recommended_use:  "3b. Health Claims / Front Panel*",
+                caution:          "6. Cautions",
+                non_medicinal:    "8. Other Ingredients",
+                risk_info:        "9. FDA Required Statement",
+                company_info:     "10. Distributor",
+                side_bar:         "11. 前面板卖点 / 声明",
+              };
+
+              return SECTION_DEFS
+                .filter(sec => !isFDA || !fdaHidden.has(sec.key))
+                .map(sec => {
+                  const val = editing && sec.source === "label" ? form[sec.key] : getVal(sec, selected);
+                  const isEditable = editing && sec.source === "label";
+                  const displayLabel = isFDA && fdaLabels[sec.key] ? fdaLabels[sec.key] : sec.label;
+                  return (
+                    <div key={sec.key} style={{ marginBottom: 12, background: sectionBg(sec), borderRadius: 8, padding: "12px 16px", border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
+                        <span>{displayLabel}</span>
+                        {sec.source === "product" && <span style={{ color: "#86efac", fontSize: 10 }}>来自产品管理</span>}
+                        {sec.source === "computed" && <span style={{ color: "#86efac", fontSize: 10 }}>自动计算</span>}
+                      </div>
+                      {isEditable ? (
+                        <textarea value={val} onChange={e => setForm(f => ({ ...f, [sec.key]: e.target.value }))} rows={3}
+                          style={{ width: "100%", padding: "6px 8px", fontSize: 13, border: "1px solid #cbd5e1", borderRadius: 5, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", lineHeight: 1.6 }} />
+                      ) : (
+                        <div style={{ fontSize: 13, color: val ? "#1e293b" : "#cbd5e1", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{val || "（空）"}</div>
+                      )}
+                    </div>
+                  );
+                });
+            })()}
           </div>
         )}
       </div>
