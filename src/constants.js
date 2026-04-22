@@ -128,6 +128,10 @@ export const DEFAULT_FDA_DISCLAIMER = "*These statements have not been evaluated
 
 export const DEFAULT_STORAGE_US = "Store in a cool, dark, and dry place at room temperature.";
 
+export const US_DISTRIBUTOR_ADDRESS = "9438 SW TIGARD ST, TIGARD, OR 97223";
+
+export const DEFAULT_COMPANY_US = `Distributor\nNutrizen Station Lab Inc.\n${US_DISTRIBUTOR_ADDRESS}\ninfo@zentrastation.com`;
+
 // ============================================================
 // 预设颜色（分类管理用）
 // ============================================================
