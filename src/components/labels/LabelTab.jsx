@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import supabase from "../../lib/supabase";
-import { SECTION_DEFS, DEFAULT_COMPANY, DEFAULT_RISK, DEFAULT_RISK_FR, DEFAULT_FDA_DISCLAIMER } from "../../constants";
+import { SECTION_DEFS, DEFAULT_COMPANY, DEFAULT_COMPANY_US, DEFAULT_RISK, DEFAULT_RISK_FR, DEFAULT_FDA_DISCLAIMER } from "../../constants";
 import Loading from "../ui/Loading";
 import LabelPreviewV2 from "./LabelPreviewV2";
 import { sortMedicinalIngredients } from "../../lib/ingredientFormatters";
@@ -419,6 +419,11 @@ export default function LabelTab() {
                       // 切换到 FDA 时自动填充免责声明（如果当前是加拿大默认或空）
                       if (t.v === "us_fda" && (!f.risk_info || f.risk_info === DEFAULT_RISK)) {
                         next.risk_info = DEFAULT_FDA_DISCLAIMER;
+                      }
+                      if (t.v === "us_fda" && (!f.company_info || f.company_info === DEFAULT_COMPANY)) {
+                        next.company_info = DEFAULT_COMPANY_US;
+                      } else if (t.v !== "us_fda" && f.company_info === DEFAULT_COMPANY_US) {
+                        next.company_info = DEFAULT_COMPANY;
                       }
                       return next;
                     })} style={{
