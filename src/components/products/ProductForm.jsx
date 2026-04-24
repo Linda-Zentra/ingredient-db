@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Field, { inputStyle as iS } from "../ui/Field";
 import MedicinalRow from "./MedicinalRow";
 import { DOSAGE_FORM_TYPES, DOSAGE_FORM_SUBTYPES } from "../../constants";
+import supabase from "../../lib/supabase";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export default function ProductForm({ product, skus, allExcipients, onSave, onDelete, onClose }) {
   const isEdit = !!product;
@@ -35,23 +38,67 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
   });
 
   const [defaultBrandId, setDefaultBrandId] = useState(initialDefaultBrandId);
+  const [brands, setBrands] = useState(product?.productBrands || []);
+  const [newBrand, setNewBrand] = useState("");
   const [medicinal, setMedicinal] = useState(product?.medicinal || []);
   const [excipients, setExcipients] = useState(product?.excipients || []);
   const [newCommon, setNewCommon] = useState("");
   const [newExcipient, setNewExcipient] = useState("");
   const [saving, setSaving] = useState(false);
+  const [imagePath, setImagePath] = useState(product?.image_path || null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
+  const imageUrl = imagePath ? `${SUPABASE_URL}/storage/v1/object/public/product-images/${imagePath}` : null;
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const ext = file.name.split(".").pop();
+    const path = `${product?.id || "new"}_${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
+    if (error) { alert("上传失败: " + error.message); setUploading(false); return; }
+    setImagePath(path);
+    if (product?.id) {
+      await supabase.from("products").update({ image_path: path }).eq("id", product.id);
+    }
+    setUploading(false);
+  };
+
+  const handleImageRemove = async () => {
+    if (!imagePath) return;
+    await supabase.storage.from("product-images").remove([imagePath]);
+    setImagePath(null);
+    if (product?.id) {
+      await supabase.from("products").update({ image_path: null }).eq("id", product.id);
+    }
+  };
+
   const handleAddCommon = () => {
     if (!newCommon.trim()) return;
-    setMedicinal(m => [...m, { id: `new-${Date.now()}`, common_name: newCommon.trim(), amount_value: null, amount_unit: null, sku_id: null, isNew: true }]);
+    setMedicinal(m => [...m, {
+      id: `new-${Date.now()}`, common_name: newCommon.trim(), isNew: true,
+      amount_value: "", amount_unit: "", sku_id: null, name_en: "", name_fr: "",
+      extract_ratio: "", extract_type: "", dried_herb_equivalent: "", dhe_unit: "",
+      potency_amount: "", potency_label: "", source_material: "", source_part: "", sort_order: 0,
+    }]);
     setNewCommon("");
   };
 
   const handleDeleteCommon = (id) => setMedicinal(m => m.filter(r => r.id !== id));
   const handleUpdateSku = (id, skuId) => setMedicinal(m => m.map(r => r.id === id ? { ...r, sku_id: skuId } : r));
-  const handleUpdateCommonName = (id, field, value) => setMedicinal(m => m.map(r => r.id === id ? { ...r, [field]: value } : r));
+  const handleUpdateField = (id, field, value) => setMedicinal(m => m.map(r => r.id === id ? { ...r, [field]: value } : r));
+
+  const handleAddBrand = () => {
+    if (!newBrand.trim()) return;
+    const tempId = `new-${Date.now()}`;
+    setBrands(bs => [...bs, { id: tempId, brand_name: newBrand.trim(), is_default: false, isNew: true }]);
+    if (brands.length === 0) setDefaultBrandId(tempId);
+    setNewBrand("");
+  };
 
   const handleAddExcipient = () => {
     if (!newExcipient.trim()) return;
@@ -65,7 +112,7 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
   const handleSubmit = async () => {
     setSaving(true);
     try {
-      await onSave(isEdit ? product.id : null, form, medicinal, excipients, defaultBrandId);
+      await onSave(isEdit ? product.id : null, form, medicinal, excipients, defaultBrandId, imagePath, brands);
       onClose();
     } catch (e) { alert("保存失败: " + e.message); }
     setSaving(false);
@@ -91,31 +138,70 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
           </div>
         </div>
 
+        {/* 产品图 */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>产品图片</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {imageUrl ? (
+              <div style={{ position: "relative" }}>
+                <img src={imageUrl} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #e2e8f0" }} />
+                <button onClick={handleImageRemove}
+                  style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "none", background: "#ef4444", color: "#fff", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>x</button>
+              </div>
+            ) : (
+              <div
+                onClick={() => fileRef.current?.click()}
+                style={{ width: 80, height: 80, borderRadius: 8, border: "2px dashed #cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "#f8fafc" }}
+              >
+                <span style={{ fontSize: 11, color: "#94a3b8", textAlign: "center" }}>{uploading ? "上传中..." : "+ 上传"}</span>
+              </div>
+            )}
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} style={{ display: "none" }} />
+            {imageUrl && (
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: "#64748b", wordBreak: "break-all" }}>{imagePath}</div>
+                <button onClick={() => fileRef.current?.click()} style={{ marginTop: 4, padding: "3px 8px", fontSize: 11, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", color: "#475569", cursor: "pointer" }}>
+                  {uploading ? "上传中..." : "更换图片"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* 基本信息 */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {/* 品牌 dropdown — 从 product_brands 来，选哪个就是 default */}
+          <Field label="产品名称 / Brand Name">
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {brands.map(pb => (
+                <div key={pb.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input value={pb.brand_name} onChange={e => setBrands(bs => bs.map(b => b.id === pb.id ? { ...b, brand_name: e.target.value } : b))}
+                    style={{ ...iS, flex: 1 }} placeholder="Brand name" />
+                  <button onClick={() => setDefaultBrandId(pb.id)} title="设为默认"
+                    style={{ padding: "4px 8px", fontSize: 11, border: "1px solid #e2e8f0", borderRadius: 4, cursor: "pointer",
+                      background: defaultBrandId === pb.id ? "#3b82f6" : "#fff", color: defaultBrandId === pb.id ? "#fff" : "#64748b" }}>
+                    {defaultBrandId === pb.id ? "默认" : "设默认"}
+                  </button>
+                  <button onClick={() => { setBrands(bs => bs.filter(b => b.id !== pb.id)); if (defaultBrandId === pb.id) setDefaultBrandId(null); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", fontSize: 16 }}
+                    onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+                    onMouseLeave={e => e.currentTarget.style.color = "#cbd5e1"}>×</button>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 6 }}>
+                <input value={newBrand} onChange={e => setNewBrand(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleAddBrand()}
+                  placeholder="添加品牌名..."
+                  style={{ ...iS, flex: 1 }} />
+                <button onClick={handleAddBrand}
+                  style={{ padding: "6px 12px", fontSize: 12, border: "none", borderRadius: 6, background: "#3b82f6", color: "#fff", cursor: "pointer" }}>+</button>
+              </div>
+            </div>
+          </Field>
+
           <div style={{ display: "flex", gap: 10 }}>
-            <Field label="默认品牌" style={{ flex: 1 }}>
-              {product?.productBrands?.length > 0 ? (
-                <select
-                  value={defaultBrandId || ""}
-                  onChange={e => setDefaultBrandId(Number(e.target.value))}
-                  style={iS}
-                >
-                  {product.productBrands.map(pb => (
-                    <option key={pb.id} value={pb.id}>{pb.brand_name}</option>
-                  ))}
-                </select>
-              ) : (
-                <div style={{ ...iS, color: "#94a3b8" }}>保存后在此选择默认品牌</div>
-              )}
-            </Field>
             <Field label="NPN" style={{ flex: 1 }}>
               <input value={form.npn} onChange={e => f("npn", e.target.value)} style={iS} placeholder="80145433" />
             </Field>
-          </div>
-
-          <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
             <Field label="Licensing Status" style={{ flex: 1 }}>
               <select value={form.licensing_status} onChange={e => f("licensing_status", e.target.value)} style={iS}>
                 <option value="not_started">未申请</option>
@@ -124,10 +210,10 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
                 <option value="expired">Expired</option>
               </select>
             </Field>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 8 }}>
-              <input type="checkbox" id="is_marketed" checked={form.is_marketed} onChange={e => f("is_marketed", e.target.checked)} />
-              <label htmlFor="is_marketed" style={{ fontSize: 13, color: "#475569", cursor: "pointer", whiteSpace: "nowrap" }}>已上市</label>
-            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input type="checkbox" id="is_marketed" checked={form.is_marketed} onChange={e => f("is_marketed", e.target.checked)} />
+            <label htmlFor="is_marketed" style={{ fontSize: 13, color: "#475569", cursor: "pointer", whiteSpace: "nowrap" }}>已上市</label>
           </div>
         </div>
 
@@ -135,7 +221,7 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
         {sectionTitle("Medicinal Ingredients")}
         {medicinal.map(item => (
           <MedicinalRow key={item.id} item={item} skus={skus} editing={true}
-            onUpdateSku={handleUpdateSku} onUpdateCommonName={handleUpdateCommonName} onDelete={handleDeleteCommon} />
+            onUpdateSku={handleUpdateSku} onUpdateField={handleUpdateField} onDelete={handleDeleteCommon} />
         ))}
         <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
           <input value={newCommon} onChange={e => setNewCommon(e.target.value)}

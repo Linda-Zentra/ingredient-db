@@ -7,7 +7,7 @@ export function getProduct(products, label) {
 export function getProdDisplayName(prod) {
   if (!prod) return "";
   const def = (prod.product_brands || []).find(pb => pb.is_default);
-  return def?.brand_name || prod.product_brands?.[0]?.brand_name || prod.product_name || "";
+  return def?.brand_name || prod.product_brands?.[0]?.brand_name || prod.product_name_zh || "";
 }
 
 export function buildExcipientMaps(products) {

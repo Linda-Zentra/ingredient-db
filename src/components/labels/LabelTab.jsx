@@ -46,7 +46,9 @@ export default function LabelTab() {
       ]);
       if (e1 || e2) throw new Error((e1 || e2).message);
       setLabels(lbls);
-      setProducts(prods);
+      const labelNameMap = {};
+      lbls.forEach(l => { if (l.product_id && l.product_name_zh) labelNameMap[l.product_id] = l.product_name_zh; });
+      setProducts(prods.map(p => ({ ...p, product_name_zh: labelNameMap[p.id] || null })));
       const maps = buildExcipientMaps(prods);
       setExcipientMap(maps.excipientMap);
       setExcipientRowsMap(maps.excipientRowsMap);

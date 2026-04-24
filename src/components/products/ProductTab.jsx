@@ -4,6 +4,7 @@ import Loading from "../ui/Loading";
 import StatusBadge from "../ui/StatusBadge";
 import ProductForm from "./ProductForm";
 import ImportNPN from "./ImportNPN";
+import { exportProductsExcel, exportProductsPDFTable, exportProductsPDFCatalog } from "../../lib/productExport";
 
 // 用 is_default 找显示名，去掉 hardcode 的 Zentra/Zensta
 function getDisplayName(product) {
@@ -23,6 +24,8 @@ export default function ProductTab({ skus }) {
   const [showImport, setShowImport] = useState(false);
   const [search, setSearch] = useState("");
   const [filterLicensing, setFilterLicensing] = useState("");
+  const [selected, setSelected] = useState(new Set());
+  const [exporting, setExporting] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -60,6 +63,15 @@ export default function ProductTab({ skus }) {
             amount_value: pmi.amount_value,
             amount_unit: pmi.amount_unit,
             sku_id: pmi.sku_id,
+            extract_ratio: pmi.extract_ratio || "",
+            extract_type: pmi.extract_type || "",
+            dried_herb_equivalent: pmi.dried_herb_equivalent,
+            dhe_unit: pmi.dhe_unit || "",
+            potency_amount: pmi.potency_amount,
+            potency_label: pmi.potency_label || "",
+            source_material: pmi.source_material || "",
+            source_part: pmi.source_part || "",
+            sort_order: pmi.sort_order ?? 0,
           })),
           excipients: (p.product_excipients || []).map(pe => ({
             id: pe.id,
@@ -79,7 +91,7 @@ export default function ProductTab({ skus }) {
     const q = search.toLowerCase();
     return products.filter(p => {
       if (q) {
-        const names = [p.product_name, p.product_name_zh, ...(p.product_brands || []).map(pb => pb.brand_name)]
+        const names = [p.product_name_zh, ...(p.product_brands || []).map(pb => pb.brand_name)]
           .filter(Boolean).join(" ").toLowerCase();
         if (!names.includes(q)) return false;
       }
@@ -88,7 +100,29 @@ export default function ProductTab({ skus }) {
     });
   }, [products, search, filterLicensing]);
 
-  const handleSave = async (productId, formData, medicinal, excipientsList, defaultBrandId) => {
+  const toggleSelect = (id, e) => {
+    e.stopPropagation();
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const ids = filtered.map(p => p.id);
+    setSelected(prev => prev.size === ids.length ? new Set() : new Set(ids));
+  };
+
+  const handleExport = async (fn) => {
+    if (selected.size === 0) return;
+    setExporting(true);
+    try { await fn([...selected]); }
+    catch (e) { alert("导出失败: " + e.message); }
+    setExporting(false);
+  };
+
+  const handleSave = async (productId, formData, medicinal, excipientsList, defaultBrandId, imagePath, brandsList) => {
     const payload = {
       npn:                 formData.npn ? parseInt(formData.npn) : null,
       licensing_status:    formData.licensing_status,
@@ -104,18 +138,26 @@ export default function ProductTab({ skus }) {
       price_cad:           formData.price_cad  !== "" ? parseFloat(formData.price_cad)  : null,
       price_usd:           formData.price_usd  !== "" ? parseFloat(formData.price_usd)  : null,
       notes:               formData.notes               || null,
+      image_path:          imagePath || null,
     };
 
     let pid = productId;
     if (productId) {
-      await supabase.from("products").update({ ...payload }).eq("id", productId);
+      const { error } = await supabase.from("products").update({ ...payload }).eq("id", productId);
+      if (error) throw new Error("保存产品失败: " + error.message);
     } else {
-      const { data: newP } = await supabase.from("products").insert(payload).select().single();
+      const { data: newP, error } = await supabase.from("products").insert(payload).select().single();
+      if (error) throw new Error("创建产品失败: " + error.message);
       pid = newP.id;
     }
 
-    // 迁移到 product_labels 的字段（先查再插/更新，因为 product_id 无 UNIQUE 约束）
-    const { data: existingLabel } = await supabase.from("product_labels").select("id").eq("product_id", pid).maybeSingle();
+    const { data: existingLabels } = await supabase.from("product_labels").select("id").eq("product_id", pid);
+    const existingLabel = existingLabels?.[0] || null;
+    // 清理重复的 label 行
+    if (existingLabels?.length > 1) {
+      const dupeIds = existingLabels.slice(1).map(l => l.id);
+      await supabase.from("product_labels").delete().in("id", dupeIds);
+    }
     const labelPayload = {
       product_name_zh: formData.product_name_zh || null,
       recommended_use: formData.recommended_use || null,
@@ -124,15 +166,24 @@ export default function ProductTab({ skus }) {
       dose_min_age:    formData.dose_min_age !== "" ? parseInt(formData.dose_min_age) : null,
     };
     if (existingLabel) {
-      await supabase.from("product_labels").update(labelPayload).eq("id", existingLabel.id);
+      const { error: lErr } = await supabase.from("product_labels").update(labelPayload).eq("id", existingLabel.id);
+      if (lErr) throw new Error("更新标签失败: " + lErr.message);
     } else {
-      await supabase.from("product_labels").insert({ product_id: pid, ...labelPayload });
+      const { error: lErr } = await supabase.from("product_labels").insert({ product_id: pid, ...labelPayload });
+      if (lErr) throw new Error("创建标签失败: " + lErr.message);
     }
 
-    // 更新 is_default：先全设 false，再把选中的设 true
-    if (pid && defaultBrandId) {
-      await supabase.from("product_brands").update({ is_default: false }).eq("product_id", pid);
-      await supabase.from("product_brands").update({ is_default: true }).eq("id", defaultBrandId);
+    // 品牌：全删再重插
+    await supabase.from("product_brands").delete().eq("product_id", pid);
+    if (brandsList?.length > 0) {
+      const { error: brErr } = await supabase.from("product_brands").insert(
+        brandsList.map(b => ({
+          product_id: pid,
+          brand_name: b.brand_name,
+          is_default: b.id === defaultBrandId,
+        }))
+      );
+      if (brErr) console.warn("品牌保存失败:", brErr.message);
     }
 
     // Medicinal ingredients: 全删再重插
@@ -156,15 +207,24 @@ export default function ProductTab({ skus }) {
       }
       if (commonId) resolvedMedicinal.push({ m, commonId });
     }
-    // 批量插入 product_medicinal_ingredients
     if (resolvedMedicinal.length > 0) {
-      await supabase.from("product_medicinal_ingredients").insert(
+      const { error: pmiErr } = await supabase.from("product_medicinal_ingredients").insert(
         resolvedMedicinal.map(({ m, commonId }) => ({
           product_id: pid, common_ingredient_id: commonId, sku_id: m.sku_id || null,
           amount_value: m.amount_value ? parseFloat(m.amount_value) : null,
           amount_unit: m.amount_unit || null,
+          extract_ratio: m.extract_ratio || null,
+          extract_type: m.extract_type || null,
+          dried_herb_equivalent: m.dried_herb_equivalent ? parseFloat(m.dried_herb_equivalent) : null,
+          dhe_unit: m.dhe_unit || null,
+          potency_amount: m.potency_amount ? parseFloat(m.potency_amount) : null,
+          potency_label: m.potency_label || null,
+          source_material: m.source_material || null,
+          source_part: m.source_part || null,
+          sort_order: m.sort_order ?? 0,
         }))
       );
+      if (pmiErr) throw new Error("保存成分失败: " + pmiErr.message);
     }
     // 批量更新 name_en / name_fr（只更新有变化的）
     for (const { m, commonId } of resolvedMedicinal) {
@@ -186,9 +246,8 @@ export default function ProductTab({ skus }) {
         excipientId = exc.id;
       }
       if (excipientId) {
-        try {
-          await supabase.from("product_excipients").insert({ product_id: pid, excipient_id: excipientId });
-        } catch (_) {}
+        const { error: peErr } = await supabase.from("product_excipients").insert({ product_id: pid, excipient_id: excipientId });
+        if (peErr) console.warn("辅料关联失败:", ex.name, peErr.message);
       }
     }
 
@@ -196,6 +255,10 @@ export default function ProductTab({ skus }) {
   };
 
   const handleDelete = async (id) => {
+    const prod = products.find(p => p.id === id);
+    if (prod?.image_path) {
+      await supabase.storage.from("product-images").remove([prod.image_path]);
+    }
     await supabase.from("product_brands").delete().eq("product_id", id);
     await supabase.from("product_medicinal_ingredients").delete().eq("product_id", id);
     await supabase.from("product_excipients").delete().eq("product_id", id);
@@ -232,17 +295,23 @@ export default function ProductTab({ skus }) {
       </div>
 
       {loading ? <Loading /> : (
-        <div style={{ padding: "0 28px 40px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+        <div style={{ padding: `0 28px ${selected.size > 0 ? "80px" : "40px"}`, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
           {filtered.map(p => {
             const displayName = getDisplayName(p);
+            const isSelected = selected.has(p.id);
             return (
               <div key={p.id} onClick={() => setFormProduct(p)} style={{
                 background: "#fff", borderRadius: 10, padding: 16, cursor: "pointer",
-                border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                border: isSelected ? "2px solid #3b82f6" : "1px solid #e2e8f0",
+                boxShadow: isSelected ? "0 0 0 3px rgba(59,130,246,0.15)" : "0 1px 3px rgba(0,0,0,0.04)",
+                position: "relative",
               }}
-                onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)"}
-                onMouseLeave={e => e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", marginBottom: 2, lineHeight: 1.3 }}>{displayName}</div>
+                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)"; }}
+                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"; }}>
+                <input type="checkbox" checked={isSelected} onChange={() => {}}
+                  onClick={e => toggleSelect(p.id, e)}
+                  style={{ position: "absolute", top: 10, right: 10, width: 16, height: 16, cursor: "pointer", accentColor: "#3b82f6" }} />
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", marginBottom: 2, lineHeight: 1.3, paddingRight: 24 }}>{displayName}</div>
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
                   {p.npn && <span style={{ fontSize: 10, color: "#64748b", background: "#f1f5f9", padding: "1px 6px", borderRadius: 4 }}>NPN {p.npn}</span>}
                   {p.licensing_status && <StatusBadge type="licensing" value={p.licensing_status} />}
@@ -253,6 +322,41 @@ export default function ProductTab({ skus }) {
             );
           })}
           {filtered.length === 0 && <div style={{ gridColumn: "1/-1", padding: 40, textAlign: "center", color: "#94a3b8" }}>暂无产品</div>}
+        </div>
+      )}
+
+      {/* Export toolbar */}
+      {selected.size > 0 && (
+        <div style={{
+          position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 900,
+          background: "#0f172a", padding: "12px 28px",
+          display: "flex", alignItems: "center", gap: 12,
+          boxShadow: "0 -4px 20px rgba(0,0,0,0.15)",
+        }}>
+          <span style={{ fontSize: 13, color: "#f8fafc", fontWeight: 500 }}>
+            已选 <strong>{selected.size}</strong> 个产品
+          </span>
+          <button onClick={toggleSelectAll}
+            style={{ padding: "5px 12px", fontSize: 12, border: "1px solid #475569", borderRadius: 6, background: "transparent", color: "#94a3b8", cursor: "pointer" }}>
+            {selected.size === filtered.length ? "取消全选" : "全选"}
+          </button>
+          <div style={{ flex: 1 }} />
+          <button disabled={exporting} onClick={() => handleExport(exportProductsExcel)}
+            style={{ padding: "7px 16px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 8, background: "#22c55e", color: "#fff", cursor: exporting ? "wait" : "pointer" }}>
+            {exporting ? "导出中..." : "导出 Excel"}
+          </button>
+          <button disabled={exporting} onClick={() => handleExport(exportProductsPDFTable)}
+            style={{ padding: "7px 16px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 8, background: "#3b82f6", color: "#fff", cursor: exporting ? "wait" : "pointer" }}>
+            PDF 表格
+          </button>
+          <button disabled={exporting} onClick={() => handleExport(exportProductsPDFCatalog)}
+            style={{ padding: "7px 16px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 8, background: "#8b5cf6", color: "#fff", cursor: exporting ? "wait" : "pointer" }}>
+            PDF 目录
+          </button>
+          <button onClick={() => setSelected(new Set())}
+            style={{ padding: "5px 10px", fontSize: 18, border: "none", background: "transparent", color: "#64748b", cursor: "pointer", lineHeight: 1 }}>
+            x
+          </button>
         </div>
       )}
 
