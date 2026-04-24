@@ -126,7 +126,7 @@ export const DEFAULT_RISK_FR = "GARDER HORS DE LA PORTÉE DES ENFANTS. NE PAS UT
 
 export const DEFAULT_FDA_DISCLAIMER = "*These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease.";
 
-export const DEFAULT_STORAGE_US = "Store in a cool, dark, and dry place at room temperature.";
+export const DEFAULT_STORAGE_US = "Keep out of reach of children. Do not use if seal under cap is broken. Store in a cool, dark, and dry place at room temperature.";
 
 export const US_DISTRIBUTOR_ADDRESS = "9438 SW TIGARD ST, TIGARD, OR 97223";
 
