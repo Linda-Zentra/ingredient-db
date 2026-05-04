@@ -38,46 +38,52 @@ export function getVal(sec, label, products, excipientMap) {
       }
 
       case "recommended_dose": {
-        if (!prod?.dose_amount) return "";
-        const amount = prod.dose_amount_max
-          ? `${prod.dose_amount}–${prod.dose_amount_max}`
-          : `${prod.dose_amount}`;
-        const unit = prod.dose_unit || "";
-        const freq = prod.dose_freq_max
-          ? `${prod.dose_freq_min}–${prod.dose_freq_max}`
-          : `${prod.dose_freq_min || ""}`;
-        const freqUnit = prod.dose_freq_unit || "";
-        return `Take ${amount} ${unit}, ${freq} times ${freqUnit}, or as directed by a healthcare practitioner.`.trim();
+        if (!prod?.dose_amount && !prod?.dose_amount_max) return "";
+        const pop = prod.dose_population || "Adults";
+        const doseMin = prod.dose_amount || 1;
+        const doseMax = prod.dose_amount_max;
+        const amount = doseMax && doseMax !== doseMin
+          ? `${doseMin}-${doseMax}`
+          : `${doseMin}`;
+        const unit = prod.dose_unit || "capsule(s)";
+        const freqMin = prod.dose_freq_min || "";
+        const freqMax = prod.dose_freq_max || "";
+        const freqUnit = prod.dose_freq_unit || "daily";
+        const times = freqMax && freqMax !== freqMin
+          ? `${freqMin}-${freqMax}`
+          : freqMin;
+        const timesStr = times
+          ? (times === "1" ? freqUnit : `${times} time(s) ${freqUnit}`)
+          : freqUnit;
+        return `${pop}: Take ${amount} ${unit} ${timesStr}, or as directed by a health care practitioner.`.trim();
       }
 
       case "medicinal_en": {
-        const ingredients = prod?.product_medicinal_ingredients || [];
+        const ingredients = prod?.product_ingredients || [];
         const fmtAmount = (pmi) => {
           const a1 = pmi.amount_value && pmi.amount_unit ? `${pmi.amount_value} ${pmi.amount_unit}` : null;
-          const a2 = pmi.amount_value2 && pmi.amount_unit2 ? `${pmi.amount_value2} ${pmi.amount_unit2}` : null;
-          return [a1, a2].filter(Boolean).join(" ");
+          return a1 || "";
         };
         return sortMedicinalIngredients(ingredients)
-          .map(pmi => [pmi.common_ingredients?.name_en, fmtAmount(pmi)].filter(Boolean).join("  "))
+          .map(pmi => [pmi.ingredients?.name_en || pmi.ingredients?.scientific_name, fmtAmount(pmi)].filter(Boolean).join("  "))
           .filter(Boolean)
           .join("\n") || "";
       }
 
       case "medicinal_fr": {
-        const ingredients = prod?.product_medicinal_ingredients || [];
+        const ingredients = prod?.product_ingredients || [];
         const fmtAmount = (pmi) => {
           const a1 = pmi.amount_value && pmi.amount_unit ? `${pmi.amount_value} ${pmi.amount_unit}` : null;
-          const a2 = pmi.amount_value2 && pmi.amount_unit2 ? `${pmi.amount_value2} ${pmi.amount_unit2}` : null;
-          return [a1, a2].filter(Boolean).join(" ");
+          return a1 || "";
         };
         return sortMedicinalIngredients(ingredients)
-          .map(pmi => [pmi.common_ingredients?.name_fr, fmtAmount(pmi)].filter(Boolean).join("  "))
+          .map(pmi => [pmi.ingredients?.name_fr || pmi.ingredients?.name_en, fmtAmount(pmi)].filter(Boolean).join("  "))
           .filter(Boolean)
           .join("\n") || "";
       }
 
       case "authorization_claims": {
-        const ingredients = prod?.product_medicinal_ingredients || [];
+        const ingredients = prod?.product_ingredients || [];
         const claims = ingredients
           .map(pmi => pmi.skus?.authorization_claims)
           .filter(Boolean);
@@ -92,5 +98,6 @@ export function getVal(sec, label, products, excipientMap) {
     }
   }
 
-  return label?.[sec.key] || "";
+  // Label fields now live on the product
+  return prod?.[sec.key] || label?.[sec.key] || "";
 }

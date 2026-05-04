@@ -25,7 +25,7 @@ export default function LabelPreviewV2({ label, product, productName, excipients
           {s.spec && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{s.spec}</div>}
         </div>
         <div style={h}>{fr ? "UTILISATION RECOMMANDÉE" : "RECOMMENDED USE"}</div>
-        <div style={b}>{fr ? s.recommended_use_fr : s.recommended_use || "—"}</div>
+        <div style={b}>{fr ? (p.recommended_use_fr || s.recommended_use_fr) : (p.recommended_use || s.recommended_use) || "—"}</div>
         <div style={h}>{fr ? "DOSE RECOMMANDÉE (ADULTES)" : "RECOMMENDED DOSE (ADULTS)"}</div>
         <div style={b}>{fr ? s.recommended_dose_fr : p.recommended_dose || "—"}</div>
         <div style={h}>{fr ? "MISES EN GARDE ET PRÉCAUTIONS" : "CAUTIONS AND WARNINGS"}</div>
@@ -101,29 +101,29 @@ export default function LabelPreviewV2({ label, product, productName, excipients
           <div style={divider} />
           <div style={h}>Cautions:</div>
           <div style={b}>
-            {s.do_not_use_en?.length > 0 && (
-              <div style={{ marginBottom: 6 }}><strong>Do not use</strong> {s.do_not_use_en.join(" ")}</div>
+            {p.do_not_use_en?.length > 0 && (
+              <div style={{ marginBottom: 6 }}><strong>Do not use</strong> {p.do_not_use_en.join(" ")}</div>
             )}
-            {s.ask_before_use_en?.length > 0 && (
-              <div style={{ marginBottom: 6 }}><strong>Ask a doctor before use if you have</strong> {s.ask_before_use_en.join(" ")}</div>
+            {p.ask_before_use_en?.length > 0 && (
+              <div style={{ marginBottom: 6 }}><strong>Ask a doctor before use if you have</strong> {p.ask_before_use_en.join(" ")}</div>
             )}
-            {s.when_using_en?.length > 0 && (
-              <div style={{ marginBottom: 6 }}><strong>When using this product</strong> {s.when_using_en.join(" ")}</div>
+            {p.when_using_en?.length > 0 && (
+              <div style={{ marginBottom: 6 }}><strong>When using this product</strong> {p.when_using_en.join(" ")}</div>
             )}
-            {s.stop_use_en?.length > 0 && (
-              <div style={{ marginBottom: 6 }}><strong>Stop use and ask a doctor if</strong> {s.stop_use_en.join(" ")}</div>
+            {p.stop_use_en?.length > 0 && (
+              <div style={{ marginBottom: 6 }}><strong>Stop use and ask a doctor if</strong> {p.stop_use_en.join(" ")}</div>
             )}
-            {s.known_adverse_en?.length > 0 && (
-              <div style={{ marginBottom: 6 }}>{s.known_adverse_en.join(" ")}</div>
+            {p.known_adverse_en?.length > 0 && (
+              <div style={{ marginBottom: 6 }}>{p.known_adverse_en.join(" ")}</div>
             )}
-            {s.other_warnings_en?.length > 0 && (
-              <div style={{ marginBottom: 6 }}>{s.other_warnings_en.join(" ")}</div>
+            {p.other_warnings_en?.length > 0 && (
+              <div style={{ marginBottom: 6 }}>{p.other_warnings_en.join(" ")}</div>
             )}
-            {s.keep_out_overdose_en && (
-              <div style={{ marginBottom: 6 }}>{s.keep_out_overdose_en}</div>
+            {p.keep_out_overdose_en && (
+              <div style={{ marginBottom: 6 }}>{p.keep_out_overdose_en}</div>
             )}
-            {/* Fallback to legacy caution + risk_info if no structured data */}
-            {!(s.do_not_use_en?.length || s.ask_before_use_en?.length || s.when_using_en?.length || s.stop_use_en?.length || s.known_adverse_en?.length || s.other_warnings_en?.length || s.keep_out_overdose_en) && (
+            {/* Fallback to legacy caution + risk_info on label */}
+            {!(p.do_not_use_en?.length || p.ask_before_use_en?.length || p.when_using_en?.length || p.stop_use_en?.length || p.known_adverse_en?.length || p.other_warnings_en?.length || p.keep_out_overdose_en) && (
               <span>{[s.caution, s.risk_info].filter(Boolean).join("\n") || "\u2014"}</span>
             )}
           </div>

@@ -32,7 +32,7 @@ export default function IngredientTab() {
   const [fontSize, setFontSize] = useState(13);
   const [expanded, setExpanded] = useState(true);
   const [openedColW, setOpenedColW] = useState(80);
-  const [commonIngredients, setCommonIngredients] = useState([]);
+  const [ingredientsList, setCommonIngredients] = useState([]);
 
   const loadData = async () => {
     try {
@@ -45,7 +45,7 @@ export default function IngredientTab() {
           sku_functions(category_id)
         `),
         supabase.from("function_categories").select("*"),
-        supabase.from("common_ingredients").select("*"),
+        supabase.from("ingredients").select("*"),
         supabase.from("suppliers").select("*").order("supplier_name"),
       ]);
       if (e1 || e2 || e3 || e4) throw new Error((e1 || e2 || e3 || e4).message);
@@ -258,7 +258,7 @@ export default function IngredientTab() {
         <>
           <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.2)", zIndex: 999 }} />
           <DetailPanel item={detail} suppliers={suppliers} categories={categories} lang={lang}
-            commonIngredients={commonIngredients}
+            ingredientsList={ingredientsList}
             onClose={() => setDetail(null)} onSave={handleSave} onDelete={handleDeleteSku} onRefresh={loadData} />
         </>
       )}

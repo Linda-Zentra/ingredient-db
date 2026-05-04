@@ -35,7 +35,7 @@ export default function MedicinalRow({ item, skus, onUpdateSku, onUpdateField, o
           {expanded ? "▼" : "▶"}
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.common_name}</div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.ingredient_name}</div>
         </div>
         <input value={item.amount_value ?? ""} onChange={e => onUpdateField(item.id, "amount_value", e.target.value)}
           placeholder="含量" disabled={!editing} type="number" style={{ ...mini, width: 70, background: editing ? "#fff" : "#f8fafc" }} />
@@ -49,13 +49,9 @@ export default function MedicinalRow({ item, skus, onUpdateSku, onUpdateField, o
         )}
       </div>
 
-      {/* Row 2: EN/FR names + SKU (always visible) */}
+      {/* Row 2: SKU link */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, paddingLeft: 24 }}>
-        <input value={item.name_en || ""} onChange={e => onUpdateField(item.id, "name_en", e.target.value)}
-          placeholder="Common EN" disabled={!editing} style={{ ...mini, flex: 1, background: editing ? "#fff" : "#f8fafc" }} />
-        <input value={item.name_fr || ""} onChange={e => onUpdateField(item.id, "name_fr", e.target.value)}
-          placeholder="Nom FR" disabled={!editing} style={{ ...mini, flex: 1, background: editing ? "#fff" : "#f8fafc" }} />
-        <div ref={ref} style={{ position: "relative", flex: 1.2 }}>
+        <div ref={ref} style={{ position: "relative", flex: 1 }}>
           {matched ? (
             <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "4px 8px" }}>
               <div style={{ flex: 1, fontSize: 11, color: "#1e40af", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{matched.ingredient_name || matched.ingredient || "—"}</div>
