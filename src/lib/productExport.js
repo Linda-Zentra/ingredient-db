@@ -9,9 +9,8 @@ async function fetchProductsForExport(productIds) {
     .select(`
       *,
       product_brands(*),
-      product_medicinal_ingredients(*, common_ingredients(id, scientific_name, name_en, name_fr)),
-      product_excipients(*, excipients(id, name, name_fr)),
-      product_labels(product_name_zh, recommended_use, caution, dose_population, dose_min_age, purposes_en)
+      product_ingredients(*, ingredients(id, scientific_name, name_en, name_fr)),
+      product_excipients(*, excipients(id, name, name_fr))
     `)
     .in("id", productIds);
 
@@ -24,7 +23,7 @@ function getDisplayName(p) {
   const def = brands.find(pb => pb.is_default);
   if (def?.brand_name) return def.brand_name;
   if (brands.length && brands[0].brand_name) return brands[0].brand_name;
-  return p.product_labels?.[0]?.product_name_zh || "—";
+  return p.product_name_zh || p.product_name || "—";
 }
 
 function getDosageForm(p) {
@@ -35,7 +34,7 @@ function getDosageForm(p) {
 }
 
 function formatIngredientLine(pmi) {
-  const ci = pmi.common_ingredients;
+  const ci = pmi.ingredients;
   const name =
     ci?.name_en && ci.name_en.toLowerCase() !== ci.scientific_name?.toLowerCase()
       ? ci.name_en
@@ -62,15 +61,14 @@ function formatIngredientLine(pmi) {
 }
 
 function formatIngredients(p) {
-  const items = p.product_medicinal_ingredients || [];
+  const items = p.product_ingredients || [];
   const sorted = [...items].sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
   return sorted.map(formatIngredientLine).join("\n");
 }
 
 function getRecommendedUse(p) {
-  const label = p.product_labels?.[0];
-  if (label?.recommended_use) return label.recommended_use;
-  if (label?.purposes_en?.length) return label.purposes_en.join("  ");
+  if (p.recommended_use) return p.recommended_use;
+  if (p.purposes_en?.length) return p.purposes_en.join("  ");
   return "";
 }
 
@@ -81,7 +79,7 @@ export async function exportProductsExcel(productIds) {
 
   const rows = products.map(p => ({
     "Product Name": getDisplayName(p),
-    "NPN": p.npn ? String(p.npn) : "",
+    "NPN": p.npn || "",
     "Dosage Form": getDosageForm(p),
     "Ingredients (amount / details)": formatIngredients(p),
     "Recommended Use": getRecommendedUse(p),
@@ -110,7 +108,7 @@ export async function exportProductsPDFTable(productIds) {
 
   const body = products.map(p => [
     getDisplayName(p),
-    p.npn ? String(p.npn) : "",
+    p.npn || "",
     getDosageForm(p),
     formatIngredients(p),
     getRecommendedUse(p),
@@ -213,12 +211,10 @@ export async function exportProductsPDFCatalog(productIds) {
       y = 14;
     }
 
-    // Card background
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
     doc.roundedRect(mx, y, cardW, cardH, 3, 3, "FD");
 
-    // Product image or placeholder
     const imgX = mx + 4;
     const imgY = y + 4;
     const imgData = p.image_path ? imageCache.get(p.image_path) : null;
@@ -237,7 +233,6 @@ export async function exportProductsPDFCatalog(productIds) {
       doc.setTextColor(0);
     }
 
-    // Text content (right side)
     const tx = mx + imgW + 10;
     let ty = y + 7;
 

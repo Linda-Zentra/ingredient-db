@@ -3,7 +3,7 @@ import { SKU_FIELDS } from "../../constants";
 import Badge from "../ui/Badge";
 import SkuCommonNameEditor from "./SkuCommonNameEditor";
 
-export default function DetailPanel({ item, suppliers, categories, lang, commonIngredients = [], onClose, onSave, onDelete, onRefresh }) {
+export default function DetailPanel({ item, suppliers, categories, lang, ingredientsList = [], onClose, onSave, onDelete, onRefresh }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
   const [selCatIds, setSelCatIds] = useState([]);
@@ -99,8 +99,8 @@ export default function DetailPanel({ item, suppliers, categories, lang, commonI
               <div style={{ flex: 1 }}>
                 <SkuCommonNameEditor
                   skuId={item.id}
-                  currentCommonId={item.common_ingredient_id}
-                  commonIngredients={commonIngredients}
+                  currentIngredientId={item.ingredient_id}
+                  ingredientsList={ingredientsList}
                   onSave={onRefresh}
                 />
               </div>

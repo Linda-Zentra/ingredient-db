@@ -80,7 +80,7 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
   const handleAddCommon = () => {
     if (!newCommon.trim()) return;
     setMedicinal(m => [...m, {
-      id: `new-${Date.now()}`, common_name: newCommon.trim(), isNew: true,
+      id: `new-${Date.now()}`, ingredient_name: newCommon.trim(), isNew: true,
       amount_value: "", amount_unit: "", sku_id: null, name_en: "", name_fr: "",
       extract_ratio: "", extract_type: "", dried_herb_equivalent: "", dhe_unit: "",
       potency_amount: "", potency_label: "", source_material: "", source_part: "", sort_order: 0,

@@ -26,8 +26,14 @@ export default function LabelTab() {
   const resetForm = (label) => {
     if (!label) return;
     const f = {};
-    SECTION_DEFS.filter(s => s.source === "label").forEach(s => { f[s.key] = label[s.key] || ""; });
+    // Label-level display fields
     f.label_type = label.label_type || "single";
+    f.subtitle = label.subtitle || "";
+    f.company_info = label.company_info || "";
+    f.licence_holder = label.licence_holder || "";
+    f.risk_info = label.risk_info || "";
+    f.risk_info_fr = label.risk_info_fr || "";
+    f.side_bar = label.side_bar || "";
     setForm(f);
   };
 
@@ -35,20 +41,17 @@ export default function LabelTab() {
     setLoading(true);
     try {
       const [{ data: lbls, error: e1 }, { data: prods, error: e2 }] = await Promise.all([
-        supabase.from("product_labels").select("*"),
+        supabase.from("labels").select("*"),
         supabase.from("products").select(`
           *,
           product_brands(*),
           product_excipients(*, excipients(name, name_fr, allergen_types)),
-          product_medicinal_ingredients(*, common_ingredients(scientific_name, name_en, name_fr, allergen_types), skus(authorization_claims)),
-          product_ingredients(*, skus(authorization_claims))
+          product_ingredients(*, ingredients(scientific_name, name_en, name_fr, allergen_types), skus(authorization_claims))
         `),
       ]);
       if (e1 || e2) throw new Error((e1 || e2).message);
       setLabels(lbls);
-      const labelNameMap = {};
-      lbls.forEach(l => { if (l.product_id && l.product_name_zh) labelNameMap[l.product_id] = l.product_name_zh; });
-      setProducts(prods.map(p => ({ ...p, product_name_zh: labelNameMap[p.id] || null })));
+      setProducts(prods);
       const maps = buildExcipientMaps(prods);
       setExcipientMap(maps.excipientMap);
       setExcipientRowsMap(maps.excipientRowsMap);
@@ -66,13 +69,13 @@ export default function LabelTab() {
 
   const handleCreate = async (productId) => {
     const payload = {
-      product_id: productId, label_type: "single", subtitle: "",
-      recommended_use_fr: "", recommended_dose_fr: "", cautions_fr: "",
-      medicinal_fr: "", non_medicinal_fr: "",
-      risk_info: DEFAULT_RISK, risk_info_fr: DEFAULT_RISK_FR,
-      company_info: DEFAULT_COMPANY, licence_holder: "Nutrizen Station Lab Inc.", side_bar: "",
+      product_id: productId,
+      company_info: DEFAULT_COMPANY,
+      licence_holder: "Nutrizen Station Lab Inc.",
+      risk_info: DEFAULT_RISK,
+      risk_info_fr: DEFAULT_RISK_FR,
     };
-    const { data: newLabel } = await supabase.from("product_labels").insert(payload).select().single();
+    const { data: newLabel } = await supabase.from("labels").insert(payload).select().single();
     await loadData();
     setSelected(newLabel);
     setEditing(true);
@@ -83,13 +86,35 @@ export default function LabelTab() {
     if (!selected) return;
     setSaving(true);
     try {
-      const payload = {};
-      SECTION_DEFS.filter(s => s.source === "label").forEach(s => { payload[s.key] = form[s.key] || null; });
-      payload.label_type = form.label_type || "single";
-      payload.updated_at = new Date().toISOString();
-      await supabase.from("product_labels").update(payload).eq("id", selected.id);
+      // Save label-level fields (subtitle, company_info, risk_info, etc.)
+      const labelPayload = {
+        label_type: form.label_type || "single",
+        subtitle: form.subtitle || null,
+        company_info: form.company_info || null,
+        licence_holder: form.licence_holder || null,
+        risk_info: form.risk_info || null,
+        risk_info_fr: form.risk_info_fr || null,
+        side_bar: form.side_bar || null,
+        updated_at: new Date().toISOString(),
+      };
+      await supabase.from("labels").update(labelPayload).eq("id", selected.id);
+
+      // Save product-level structured fields (warnings, purposes)
+      const prod = getProduct(products, selected);
+      if (prod) {
+        const prodPayload = {};
+        Object.keys(form).forEach(key => {
+          if (key.startsWith("_prod_")) {
+            prodPayload[key.slice(6)] = form[key];
+          }
+        });
+        if (Object.keys(prodPayload).length > 0) {
+          await supabase.from("products").update(prodPayload).eq("id", prod.id);
+        }
+      }
+
       await loadData();
-      const { data: refreshed } = await supabase.from("product_labels").select("*").eq("id", selected.id).single();
+      const { data: refreshed } = await supabase.from("labels").select("*").eq("id", selected.id).single();
       setSelected(refreshed || null);
       setEditing(false);
     } catch (e) { alert("保存失败: " + e.message); }
@@ -98,15 +123,14 @@ export default function LabelTab() {
 
   const handleDelete = async (id) => {
     if (!confirm("确定删除这个标签？")) return;
-    await supabase.from("product_labels").delete().eq("id", id);
+    await supabase.from("labels").delete().eq("id", id);
     if (selected?.id === id) { setSelected(null); setEditing(false); }
     await loadData();
   };
 
   const handleDuplicate = async (label) => {
-    const { id, created_at, updated_at, _prodName, _npn, ...rest } = label;
-    rest.subtitle = (rest.subtitle || "") + " (副本)";
-    const { data: newLabel, error } = await supabase.from("product_labels").insert(rest).select().single();
+    const { id, created_at, updated_at, ...rest } = label;
+    const { data: newLabel, error } = await supabase.from("labels").insert(rest).select().single();
     if (error) { alert("复制失败: " + error.message); return; }
     await loadData();
     setSelected(newLabel);
@@ -116,23 +140,22 @@ export default function LabelTab() {
 
   const handleExport = () => {
     if (!selected) return;
-    downloadLabelText(selected, products, excipientMap);
+    const prod = getProduct(products, selected);
+    downloadLabelText(prod || selected, products, excipientMap);
   };
 
   const handleRefresh = async () => {
     const prod = getProduct(products, selected);
-    const npnNum = parseInt(prod?.npn);
-    if (!npnNum || isNaN(npnNum)) return alert("该产品没有有效的 NPN，无法刷新");
-    if (!confirm(`确定从 Health Canada 重新导入 NPN ${npnNum} 的数据？`)) return;
+    const npnStr = prod?.npn;
+    if (!npnStr) return alert("该产品没有有效的 NPN，无法刷新");
+    if (!confirm(`确定从 Health Canada 重新导入 NPN ${npnStr} 的数据？`)) return;
     setSaving(true);
     try {
       const { error } = await supabase.functions.invoke("import-npn", {
-        body: { npns: [npnNum] },
+        body: { npns: [npnStr] },
       });
       if (error) throw error;
       await loadData();
-      const { data: refreshed } = await supabase.from("product_labels").select("*").eq("id", selected.id).single();
-      setSelected(refreshed || selected);
       alert("刷新成功！数据已从 Health Canada 更新。");
     } catch (e) {
       alert("刷新失败: " + (e.message || e));
@@ -170,7 +193,7 @@ export default function LabelTab() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a" }}>标签预览</h2>
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={handleExport} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#475569" }}>📥 导出 TXT</button>
+                <button onClick={handleExport} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#475569" }}>导出 TXT</button>
                 <button onClick={() => setPreviewMode(false)} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#475569" }}>← 返回</button>
               </div>
             </div>
@@ -180,7 +203,7 @@ export default function LabelTab() {
               productName={getProdDisplayName(selProd)}
               excipients={excipientMap[selected.product_id] || ""}
               excipientRows={excipientRowsMap[selected.product_id] || []}
-              ingredients={sortMedicinalIngredients(selProd?.product_medicinal_ingredients || [])}
+              ingredients={sortMedicinalIngredients(selProd?.product_ingredients || [])}
               medicinalEn={boundGetVal(SECTION_DEFS.find(d => d.key === "medicinal_en"), selected)}
               medicinalFr={boundGetVal(SECTION_DEFS.find(d => d.key === "medicinal_fr"), selected)}
               authorizationClaims={boundGetVal(SECTION_DEFS.find(d => d.key === "authorization_claims"), selected)}
@@ -199,14 +222,14 @@ export default function LabelTab() {
               <div style={{ display: "flex", gap: 8 }}>
                 {!editing ? (
                   <>
-                    <button onClick={() => setPreviewMode(true)} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#475569" }}>👁️ 预览</button>
-                    <button onClick={handleExport} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#475569" }}>📥 导出</button>
-                    <button onClick={handleRefresh} disabled={saving} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: saving ? "wait" : "pointer", color: "#475569" }}>🔄 刷新HC</button>
-                    <button onClick={() => setEditing(true)} style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 6, background: "#3b82f6", color: "#fff", cursor: "pointer", fontWeight: 600 }}>✏️ 编辑</button>
+                    <button onClick={() => setPreviewMode(true)} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#475569" }}>预览</button>
+                    <button onClick={handleExport} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#475569" }}>导出</button>
+                    <button onClick={handleRefresh} disabled={saving} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: saving ? "wait" : "pointer", color: "#475569" }}>刷新HC</button>
+                    <button onClick={() => setEditing(true)} style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 6, background: "#3b82f6", color: "#fff", cursor: "pointer", fontWeight: 600 }}>编辑</button>
                   </>
                 ) : (
                   <>
-                    <button onClick={handleSave} disabled={saving} style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 6, background: "#22c55e", color: "#fff", cursor: saving ? "wait" : "pointer", fontWeight: 600 }}>{saving ? "保存中..." : "💾 保存"}</button>
+                    <button onClick={handleSave} disabled={saving} style={{ padding: "6px 14px", fontSize: 12, border: "none", borderRadius: 6, background: "#22c55e", color: "#fff", cursor: saving ? "wait" : "pointer", fontWeight: 600 }}>{saving ? "保存中..." : "保存"}</button>
                     <button onClick={() => { resetForm(selected); setEditing(false); }} style={{ padding: "6px 14px", fontSize: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#475569" }}>取消</button>
                   </>
                 )}
@@ -214,6 +237,7 @@ export default function LabelTab() {
             </div>
             <LabelForm
               selected={selected}
+              product={selProd}
               form={form}
               editing={editing}
               getVal={boundGetVal}
@@ -243,7 +267,7 @@ export default function LabelTab() {
                     onMouseLeave={e => e.currentTarget.style.background = "#fff"}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>{getProdDisplayName(p)}</div>
-                      <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.npn && `NPN ${p.npn}`}{p.dosage_form && ` · ${p.dosage_form}`}</div>
+                      <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.npn && `NPN ${p.npn}`}{p.dosage_form_type && ` · ${p.dosage_form_type}`}</div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       {hasLabel && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#fef3c7", color: "#92400e" }}>已有标签</span>}

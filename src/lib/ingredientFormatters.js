@@ -13,7 +13,7 @@ const SPECIAL_PARTS = ['resin', 'oil', 'juice'];
  */
 export function formatMedicinalIngredient(pmi) {
   const {
-    common_ingredients: ci,
+    ingredients: ci,
     amount_value,
     amount_unit,
     extract_ratio,
@@ -204,7 +204,7 @@ export function buildPerDoseStatement(product) {
 export function collectAllergens(medicinalIngredients, excipientRows) {
   const all = [];
   for (const pmi of (medicinalIngredients ?? [])) {
-    const ci = pmi.common_ingredients;
+    const ci = pmi.ingredients;
     if (ci?.allergen_types?.length) all.push(...ci.allergen_types);
   }
   for (const pe of (excipientRows ?? [])) {

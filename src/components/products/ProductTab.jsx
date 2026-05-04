@@ -6,12 +6,11 @@ import ProductForm from "./ProductForm";
 import ImportNPN from "./ImportNPN";
 import { exportProductsExcel, exportProductsPDFTable, exportProductsPDFCatalog } from "../../lib/productExport";
 
-// 用 is_default 找显示名，去掉 hardcode 的 Zentra/Zensta
 function getDisplayName(product) {
   const def = product.product_brands?.find(pb => pb.is_default);
   if (def) return def.brand_name || product.product_name_zh || "—";
   if (product.product_brands?.length) return product.product_brands[0].brand_name || product.product_name_zh || "—";
-  return product.product_name_zh || "—";
+  return product.product_name_zh || product.product_name || "—";
 }
 
 const selStyle = { padding: "9px 10px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" };
@@ -30,56 +29,45 @@ export default function ProductTab({ skus }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      // 两个请求替代原来七个，Supabase 自动 JOIN
       const [{ data: prods, error: e1 }, { data: excs, error: e2 }] = await Promise.all([
         supabase.from("products").select(`
           *,
           product_brands(*),
-          product_medicinal_ingredients(*, common_ingredients(id, scientific_name, name_en, name_fr)),
-          product_excipients(*, excipients(id, name)),
-          product_labels(product_name_zh, recommended_use, caution, dose_population, dose_min_age)
+          product_ingredients(*, ingredients(id, scientific_name, name_en, name_fr, common_names_en)),
+          product_excipients(*, excipients(id, name))
         `),
         supabase.from("excipients").select("*"),
       ]);
       if (e1 || e2) throw new Error((e1 || e2).message);
 
-      // 数据结构整理，和之前保持一致让 ProductForm 不用改
-      setProducts(prods.map(p => {
-        const labelData = p.product_labels?.[0] || {};
-        return {
-          ...p,
-          product_name_zh:  labelData.product_name_zh  ?? null,
-          recommended_use:  labelData.recommended_use  ?? null,
-          caution:          labelData.caution           ?? null,
-          dose_population:  labelData.dose_population  ?? null,
-          dose_min_age:     labelData.dose_min_age      ?? null,
-          productBrands: p.product_brands || [],
-          medicinal: (p.product_medicinal_ingredients || []).map(pmi => ({
-            id: pmi.id,
-            common_name: pmi.common_ingredients?.scientific_name || "—",
-            common_ingredient_id: pmi.common_ingredient_id,
-            name_en: pmi.common_ingredients?.name_en || "",
-            name_fr: pmi.common_ingredients?.name_fr || "",
-            amount_value: pmi.amount_value,
-            amount_unit: pmi.amount_unit,
-            sku_id: pmi.sku_id,
-            extract_ratio: pmi.extract_ratio || "",
-            extract_type: pmi.extract_type || "",
-            dried_herb_equivalent: pmi.dried_herb_equivalent,
-            dhe_unit: pmi.dhe_unit || "",
-            potency_amount: pmi.potency_amount,
-            potency_label: pmi.potency_label || "",
-            source_material: pmi.source_material || "",
-            source_part: pmi.source_part || "",
-            sort_order: pmi.sort_order ?? 0,
-          })),
-          excipients: (p.product_excipients || []).map(pe => ({
-            id: pe.id,
-            excipient_id: pe.excipient_id,
-            name: pe.excipients?.name || "—",
-          })),
-        };
-      }));
+      setProducts(prods.map(p => ({
+        ...p,
+        productBrands: p.product_brands || [],
+        medicinal: (p.product_ingredients || []).map(pi => ({
+          id: pi.id,
+          ingredient_name: pi.ingredients?.common_names_en?.[0] || pi.ingredients?.name_en || pi.ingredients?.scientific_name || "—",
+          ingredient_id: pi.ingredient_id,
+          name_en: pi.ingredients?.name_en || "",
+          name_fr: pi.ingredients?.name_fr || "",
+          amount_value: pi.amount_value,
+          amount_unit: pi.amount_unit,
+          sku_id: pi.sku_id,
+          extract_ratio: pi.extract_ratio || "",
+          extract_type: pi.extract_type || "",
+          dried_herb_equivalent: pi.dried_herb_equivalent,
+          dhe_unit: pi.dhe_unit || "",
+          potency_amount: pi.potency_amount,
+          potency_label: pi.potency_label || "",
+          source_material: pi.source_material || "",
+          source_part: pi.source_part || "",
+          sort_order: pi.sort_order ?? 0,
+        })),
+        excipients: (p.product_excipients || []).map(pe => ({
+          id: pe.id,
+          excipient_id: pe.excipient_id,
+          name: pe.excipients?.name || "—",
+        })),
+      })));
       setExcipients(excs);
     } catch (e) { alert("加载失败: " + e.message); }
     setLoading(false);
@@ -91,7 +79,7 @@ export default function ProductTab({ skus }) {
     const q = search.toLowerCase();
     return products.filter(p => {
       if (q) {
-        const names = [p.product_name_zh, ...(p.product_brands || []).map(pb => pb.brand_name)]
+        const names = [p.product_name_zh, p.product_name, ...(p.product_brands || []).map(pb => pb.brand_name)]
           .filter(Boolean).join(" ").toLowerCase();
         if (!names.includes(q)) return false;
       }
@@ -124,7 +112,7 @@ export default function ProductTab({ skus }) {
 
   const handleSave = async (productId, formData, medicinal, excipientsList, defaultBrandId, imagePath, brandsList) => {
     const payload = {
-      npn:                 formData.npn ? parseInt(formData.npn) : null,
+      npn:                 formData.npn || null,
       licensing_status:    formData.licensing_status,
       is_marketed:         formData.is_marketed,
       dosage_form_type:    formData.dosage_form_type    || null,
@@ -139,11 +127,15 @@ export default function ProductTab({ skus }) {
       price_usd:           formData.price_usd  !== "" ? parseFloat(formData.price_usd)  : null,
       notes:               formData.notes               || null,
       image_path:          imagePath || null,
+      product_name_zh:     formData.product_name_zh     || null,
+      recommended_use:     formData.recommended_use     || null,
+      dose_population:     formData.dose_population     || null,
+      dose_min_age:        formData.dose_min_age !== "" ? parseInt(formData.dose_min_age) : null,
     };
 
     let pid = productId;
     if (productId) {
-      const { error } = await supabase.from("products").update({ ...payload }).eq("id", productId);
+      const { error } = await supabase.from("products").update(payload).eq("id", productId);
       if (error) throw new Error("保存产品失败: " + error.message);
     } else {
       const { data: newP, error } = await supabase.from("products").insert(payload).select().single();
@@ -151,29 +143,7 @@ export default function ProductTab({ skus }) {
       pid = newP.id;
     }
 
-    const { data: existingLabels } = await supabase.from("product_labels").select("id").eq("product_id", pid);
-    const existingLabel = existingLabels?.[0] || null;
-    // 清理重复的 label 行
-    if (existingLabels?.length > 1) {
-      const dupeIds = existingLabels.slice(1).map(l => l.id);
-      await supabase.from("product_labels").delete().in("id", dupeIds);
-    }
-    const labelPayload = {
-      product_name_zh: formData.product_name_zh || null,
-      recommended_use: formData.recommended_use || null,
-      caution:         formData.caution         || null,
-      dose_population: formData.dose_population || null,
-      dose_min_age:    formData.dose_min_age !== "" ? parseInt(formData.dose_min_age) : null,
-    };
-    if (existingLabel) {
-      const { error: lErr } = await supabase.from("product_labels").update(labelPayload).eq("id", existingLabel.id);
-      if (lErr) throw new Error("更新标签失败: " + lErr.message);
-    } else {
-      const { error: lErr } = await supabase.from("product_labels").insert({ product_id: pid, ...labelPayload });
-      if (lErr) throw new Error("创建标签失败: " + lErr.message);
-    }
-
-    // 品牌：全删再重插
+    // Brands: delete + reinsert
     await supabase.from("product_brands").delete().eq("product_id", pid);
     if (brandsList?.length > 0) {
       const { error: brErr } = await supabase.from("product_brands").insert(
@@ -186,31 +156,34 @@ export default function ProductTab({ skus }) {
       if (brErr) console.warn("品牌保存失败:", brErr.message);
     }
 
-    // Medicinal ingredients: 全删再重插
-    await supabase.from("product_medicinal_ingredients").delete().eq("product_id", pid);
-    // 新增的 common_ingredients 需要先逐条插入拿到 id，已有的直接用
-    const newMedicinal = medicinal.filter(m => m.isNew);
-    const { data: commonCache } = newMedicinal.length > 0
-      ? await supabase.from("common_ingredients").select("*")
-      : { data: [] };
+    // Medicinal ingredients: delete + reinsert
+    await supabase.from("product_ingredients").delete().eq("product_id", pid);
     const resolvedMedicinal = [];
     for (const m of medicinal) {
-      let commonId = m.common_ingredient_id;
+      let ingId = m.ingredient_id;
       if (m.isNew) {
-        let common = commonCache.find(c => c.scientific_name.toLowerCase() === m.common_name.toLowerCase());
-        if (!common) {
-          const { data: newC } = await supabase.from("common_ingredients").insert({ scientific_name: m.common_name }).select().single();
-          common = newC;
-          commonCache.push(common);
+        const { data: existing } = await supabase
+          .from("ingredients")
+          .select("id")
+          .eq("scientific_name", m.ingredient_name)
+          .maybeSingle();
+        if (existing) {
+          ingId = existing.id;
+        } else {
+          const { data: newIng } = await supabase
+            .from("ingredients")
+            .insert({ scientific_name: m.ingredient_name, name_en: m.ingredient_name })
+            .select("id")
+            .single();
+          ingId = newIng?.id;
         }
-        commonId = common.id;
       }
-      if (commonId) resolvedMedicinal.push({ m, commonId });
+      if (ingId) resolvedMedicinal.push({ m, ingId });
     }
     if (resolvedMedicinal.length > 0) {
-      const { error: pmiErr } = await supabase.from("product_medicinal_ingredients").insert(
-        resolvedMedicinal.map(({ m, commonId }) => ({
-          product_id: pid, common_ingredient_id: commonId, sku_id: m.sku_id || null,
+      const { error: piErr } = await supabase.from("product_ingredients").insert(
+        resolvedMedicinal.map(({ m, ingId }) => ({
+          product_id: pid, ingredient_id: ingId, sku_id: m.sku_id || null,
           amount_value: m.amount_value ? parseFloat(m.amount_value) : null,
           amount_unit: m.amount_unit || null,
           extract_ratio: m.extract_ratio || null,
@@ -224,16 +197,16 @@ export default function ProductTab({ skus }) {
           sort_order: m.sort_order ?? 0,
         }))
       );
-      if (pmiErr) throw new Error("保存成分失败: " + pmiErr.message);
+      if (piErr) throw new Error("保存成分失败: " + piErr.message);
     }
-    // 批量更新 name_en / name_fr（只更新有变化的）
-    for (const { m, commonId } of resolvedMedicinal) {
+    // Update name_en / name_fr on ingredients if changed
+    for (const { m, ingId } of resolvedMedicinal) {
       if (m.name_en !== undefined || m.name_fr !== undefined) {
-        await supabase.from("common_ingredients").update({ name_en: m.name_en || null, name_fr: m.name_fr || null }).eq("id", commonId);
+        await supabase.from("ingredients").update({ name_en: m.name_en || null, name_fr: m.name_fr || null }).eq("id", ingId);
       }
     }
 
-    // Excipients: 全删再重插，确保删除的行也写回 DB
+    // Excipients: delete + reinsert
     await supabase.from("product_excipients").delete().eq("product_id", pid);
     for (const ex of excipientsList) {
       let excipientId = ex.excipient_id;
@@ -259,10 +232,6 @@ export default function ProductTab({ skus }) {
     if (prod?.image_path) {
       await supabase.storage.from("product-images").remove([prod.image_path]);
     }
-    await supabase.from("product_brands").delete().eq("product_id", id);
-    await supabase.from("product_medicinal_ingredients").delete().eq("product_id", id);
-    await supabase.from("product_excipients").delete().eq("product_id", id);
-    await supabase.from("product_labels").delete().eq("product_id", id);
     await supabase.from("products").delete().eq("id", id);
     setFormProduct(undefined);
     await loadData();
@@ -325,7 +294,6 @@ export default function ProductTab({ skus }) {
         </div>
       )}
 
-      {/* Export toolbar */}
       {selected.size > 0 && (
         <div style={{
           position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 900,

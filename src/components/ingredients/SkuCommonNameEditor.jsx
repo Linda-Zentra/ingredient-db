@@ -2,14 +2,14 @@ import { useState } from "react";
 import supabase from "../../lib/supabase";
 import CommonNamePicker from "./CommonNamePicker";
 
-export default function SkuCommonNameEditor({ skuId, currentCommonId, commonIngredients, onSave }) {
+export default function SkuCommonNameEditor({ skuId, currentIngredientId, ingredientsList, onSave }) {
   const [editing, setEditing] = useState(false);
-  const [selectedId, setSelectedId] = useState(currentCommonId);
-  const current = commonIngredients.find(c => c.id === selectedId);
+  const [selectedId, setSelectedId] = useState(currentIngredientId);
+  const current = ingredientsList.find(c => c.id === selectedId);
 
   const handleSave = async (newId) => {
     try {
-      await supabase.from("skus").update({ common_ingredient_id: newId }).eq("id", skuId);
+      await supabase.from("skus").update({ ingredient_id: newId }).eq("id", skuId);
       setSelectedId(newId);
       onSave?.(newId);
     } catch (e) { alert("保存失败: " + e.message); }
@@ -32,8 +32,8 @@ export default function SkuCommonNameEditor({ skuId, currentCommonId, commonIngr
   return (
     <CommonNamePicker
       skuId={skuId}
-      currentCommonId={selectedId}
-      commonIngredients={commonIngredients}
+      currentIngredientId={selectedId}
+      ingredientsList={ingredientsList}
       onChange={handleSave}
     />
   );

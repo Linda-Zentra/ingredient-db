@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 
-export default function CommonNamePicker({ skuId, currentCommonId, commonIngredients, onChange }) {
+export default function CommonNamePicker({ skuId, currentIngredientId, ingredientsList, onChange }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const ref = useRef(null);
@@ -11,13 +11,13 @@ export default function CommonNamePicker({ skuId, currentCommonId, commonIngredi
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const current = commonIngredients.find(c => c.id === currentCommonId);
+  const current = ingredientsList.find(c => c.id === currentIngredientId);
 
   const suggestions = useMemo(() => {
     if (!input.trim()) return [];
     const q = input.toLowerCase();
-    return commonIngredients.filter(c => c.name?.toLowerCase().includes(q)).slice(0, 8);
-  }, [input, commonIngredients]);
+    return ingredientsList.filter(c => c.name?.toLowerCase().includes(q)).slice(0, 8);
+  }, [input, ingredientsList]);
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
