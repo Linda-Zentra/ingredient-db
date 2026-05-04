@@ -34,7 +34,8 @@ export default function ProductTab({ skus }) {
           *,
           product_brands(*),
           product_ingredients(*, ingredients(id, scientific_name, name_en, name_fr, common_names_en)),
-          product_excipients(*, excipients(id, name))
+          product_excipients(*, excipients(id, name)),
+          product_images(image_id, images(id, url, filename, type, sort_order))
         `),
         supabase.from("excipients").select("*"),
       ]);
@@ -67,6 +68,10 @@ export default function ProductTab({ skus }) {
           excipient_id: pe.excipient_id,
           name: pe.excipients?.name || "—",
         })),
+        images: (p.product_images || [])
+          .map(pi => pi.images)
+          .filter(Boolean)
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
       })));
       setExcipients(excs);
     } catch (e) { alert("加载失败: " + e.message); }
@@ -110,7 +115,7 @@ export default function ProductTab({ skus }) {
     setExporting(false);
   };
 
-  const handleSave = async (productId, formData, medicinal, excipientsList, defaultBrandId, imagePath, brandsList) => {
+  const handleSave = async (productId, formData, medicinal, excipientsList, defaultBrandId, _imagePath, brandsList) => {
     const payload = {
       npn:                 formData.npn || null,
       licensing_status:    formData.licensing_status,
@@ -126,7 +131,6 @@ export default function ProductTab({ skus }) {
       price_cad:           formData.price_cad  !== "" ? parseFloat(formData.price_cad)  : null,
       price_usd:           formData.price_usd  !== "" ? parseFloat(formData.price_usd)  : null,
       notes:               formData.notes               || null,
-      image_path:          imagePath || null,
       product_name_zh:     formData.product_name_zh     || null,
       recommended_use:     formData.recommended_use     || null,
       dose_population:     formData.dose_population     || null,
@@ -229,8 +233,11 @@ export default function ProductTab({ skus }) {
 
   const handleDelete = async (id) => {
     const prod = products.find(p => p.id === id);
-    if (prod?.image_path) {
-      await supabase.storage.from("product-images").remove([prod.image_path]);
+    if (prod?.images?.length) {
+      await supabase.storage.from("product-images").remove(prod.images.map(i => i.url));
+      const imgIds = prod.images.map(i => i.id);
+      await supabase.from("product_images").delete().eq("product_id", id);
+      await supabase.from("images").delete().in("id", imgIds);
     }
     await supabase.from("products").delete().eq("id", id);
     setFormProduct(undefined);
