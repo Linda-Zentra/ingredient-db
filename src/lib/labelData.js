@@ -53,7 +53,7 @@ export function getVal(sec, label, products, excipientMap) {
           ? `${freqMin}-${freqMax}`
           : freqMin;
         const timesStr = times
-          ? (times === "1" ? freqUnit : `${times} time(s) ${freqUnit}`)
+          ? (String(times) === "1" ? freqUnit : `${times} time(s) ${freqUnit}`)
           : freqUnit;
         return `${pop}: Take ${amount} ${unit} ${timesStr}, or as directed by a health care practitioner.`.trim();
       }

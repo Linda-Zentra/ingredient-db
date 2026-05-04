@@ -183,7 +183,7 @@ export function buildPerDoseStatement(product) {
   if (/liquid|solution|syrup|drops|tincture|elixir/.test(form)) {
     const amt = product.dose_amount;
     const unit = product.dose_unit ?? 'mL';
-    return amt ? `In each ${amt} ${unit}` : 'In each dose';
+    return amt ? `per ${amt} ${unit}` : 'per dose';
   }
 
   const formMap = {
@@ -192,9 +192,9 @@ export function buildPerDoseStatement(product) {
     powder: 'dose', gummy: 'gummy', gummies: 'gummy',
   };
   for (const [key, label] of Object.entries(formMap)) {
-    if (form.includes(key) || sub.includes(key)) return `Each ${label} contains`;
+    if (form.includes(key) || sub.includes(key)) return `per ${label}`;
   }
-  return 'Each dose contains';
+  return 'per dose';
 }
 
 

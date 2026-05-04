@@ -45,13 +45,14 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
   const [newCommon, setNewCommon] = useState("");
   const [newExcipient, setNewExcipient] = useState("");
   const [saving, setSaving] = useState(false);
-  const [imagePath, setImagePath] = useState(product?.image_path || null);
+  const [images, setImages] = useState(product?.images || []);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef(null);
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  const imageUrl = imagePath ? `${SUPABASE_URL}/storage/v1/object/public/product-images/${imagePath}` : null;
+  const primaryImage = images[0] || null;
+  const imageUrl = primaryImage?.url ? `${SUPABASE_URL}/storage/v1/object/public/product-images/${primaryImage.url}` : null;
 
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -61,20 +62,28 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
     const path = `${product?.id || "new"}_${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
     if (error) { alert("上传失败: " + error.message); setUploading(false); return; }
-    setImagePath(path);
+
     if (product?.id) {
-      await supabase.from("products").update({ image_path: path }).eq("id", product.id);
+      const { data: imgRow } = await supabase.from("images").insert({ url: path, filename: file.name, type: "product", sort_order: images.length }).select().single();
+      if (imgRow) {
+        await supabase.from("product_images").insert({ product_id: product.id, image_id: imgRow.id });
+        setImages(prev => [...prev, imgRow]);
+      }
+    } else {
+      setImages(prev => [...prev, { id: `pending-${Date.now()}`, url: path, filename: file.name, pending: true }]);
     }
     setUploading(false);
   };
 
-  const handleImageRemove = async () => {
-    if (!imagePath) return;
-    await supabase.storage.from("product-images").remove([imagePath]);
-    setImagePath(null);
-    if (product?.id) {
-      await supabase.from("products").update({ image_path: null }).eq("id", product.id);
+  const handleImageRemove = async (imgId) => {
+    const img = images.find(i => i.id === imgId);
+    if (!img) return;
+    await supabase.storage.from("product-images").remove([img.url]);
+    if (!img.pending) {
+      await supabase.from("product_images").delete().eq("image_id", imgId);
+      await supabase.from("images").delete().eq("id", imgId);
     }
+    setImages(prev => prev.filter(i => i.id !== imgId));
   };
 
   const handleAddCommon = () => {
@@ -112,7 +121,7 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
   const handleSubmit = async () => {
     setSaving(true);
     try {
-      await onSave(isEdit ? product.id : null, form, medicinal, excipients, defaultBrandId, imagePath, brands);
+      await onSave(isEdit ? product.id : null, form, medicinal, excipients, defaultBrandId, null, brands);
       onClose();
     } catch (e) { alert("保存失败: " + e.message); }
     setSaving(false);
@@ -141,30 +150,24 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
         {/* 产品图 */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>产品图片</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {imageUrl ? (
-              <div style={{ position: "relative" }}>
-                <img src={imageUrl} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #e2e8f0" }} />
-                <button onClick={handleImageRemove}
-                  style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "none", background: "#ef4444", color: "#fff", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>x</button>
-              </div>
-            ) : (
-              <div
-                onClick={() => fileRef.current?.click()}
-                style={{ width: 80, height: 80, borderRadius: 8, border: "2px dashed #cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "#f8fafc" }}
-              >
-                <span style={{ fontSize: 11, color: "#94a3b8", textAlign: "center" }}>{uploading ? "上传中..." : "+ 上传"}</span>
-              </div>
-            )}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
+            {images.map(img => {
+              const url = `${SUPABASE_URL}/storage/v1/object/public/product-images/${img.url}`;
+              return (
+                <div key={img.id} style={{ position: "relative" }}>
+                  <img src={url} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #e2e8f0" }} />
+                  <button onClick={() => handleImageRemove(img.id)}
+                    style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "none", background: "#ef4444", color: "#fff", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>x</button>
+                </div>
+              );
+            })}
+            <div
+              onClick={() => fileRef.current?.click()}
+              style={{ width: 80, height: 80, borderRadius: 8, border: "2px dashed #cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "#f8fafc" }}
+            >
+              <span style={{ fontSize: 11, color: "#94a3b8", textAlign: "center" }}>{uploading ? "上传中..." : "+ 上传"}</span>
+            </div>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} style={{ display: "none" }} />
-            {imageUrl && (
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, color: "#64748b", wordBreak: "break-all" }}>{imagePath}</div>
-                <button onClick={() => fileRef.current?.click()} style={{ marginTop: 4, padding: "3px 8px", fontSize: 11, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", color: "#475569", cursor: "pointer" }}>
-                  {uploading ? "上传中..." : "更换图片"}
-                </button>
-              </div>
-            )}
           </div>
         </div>
 
