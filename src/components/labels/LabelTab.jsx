@@ -31,8 +31,6 @@ export default function LabelTab() {
     f.subtitle = label.subtitle || "";
     f.company_info = label.company_info || "";
     f.licence_holder = label.licence_holder || "";
-    f.caution = label.caution || "";
-    f.cautions_fr = label.cautions_fr || "";
     f.risk_info = label.risk_info || "";
     f.risk_info_fr = label.risk_info_fr || "";
     f.side_bar = label.side_bar || "";
@@ -92,8 +90,6 @@ export default function LabelTab() {
       const labelPayload = {
         label_type: form.label_type || "single",
         subtitle: form.subtitle || null,
-        caution: form.caution || null,
-        cautions_fr: form.cautions_fr || null,
         company_info: form.company_info || null,
         licence_holder: form.licence_holder || null,
         risk_info: form.risk_info || null,
@@ -101,11 +97,7 @@ export default function LabelTab() {
         side_bar: form.side_bar || null,
         updated_at: new Date().toISOString(),
       };
-      let { error: lblErr } = await supabase.from("labels").update(labelPayload).eq("id", selected.id);
-      if (lblErr?.message?.includes("caution")) {
-        delete labelPayload.caution;
-        ({ error: lblErr } = await supabase.from("labels").update(labelPayload).eq("id", selected.id));
-      }
+      const { error: lblErr } = await supabase.from("labels").update(labelPayload).eq("id", selected.id);
       if (lblErr) throw new Error("保存标签失败: " + lblErr.message);
 
       // Save product-level structured fields (warnings, purposes)

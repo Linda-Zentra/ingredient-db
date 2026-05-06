@@ -196,26 +196,6 @@ export default function LabelForm({ selected, product, form, editing, getVal, on
         <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>标签展示信息</div>
 
         <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 2 }}>Cautions & Warnings</div>
-          {editing ? (
-            <textarea value={form.caution || ""} onChange={e => onFormChange({ ...form, caution: e.target.value })} rows={2} style={textareaStyle} placeholder="Consult a health care practitioner..." />
-          ) : (
-            <div style={{ fontSize: 12, color: "#1e293b", whiteSpace: "pre-wrap" }}>{selected?.caution || "—"}</div>
-          )}
-        </div>
-
-        {bilingual && (
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 2 }}>Mises en garde (FR)</div>
-            {editing ? (
-              <textarea value={form.cautions_fr || ""} onChange={e => onFormChange({ ...form, cautions_fr: e.target.value })} rows={2} style={textareaStyle} placeholder="Consultez un praticien..." />
-            ) : (
-              <div style={{ fontSize: 12, color: "#1e293b", whiteSpace: "pre-wrap" }}>{selected?.cautions_fr || "—"}</div>
-            )}
-          </div>
-        )}
-
-        <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 2 }}>Risk / Storage Statement</div>
           {editing ? (
             <textarea value={form.risk_info || ""} onChange={e => onFormChange({ ...form, risk_info: e.target.value })} rows={2} style={textareaStyle} />

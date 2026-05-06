@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { DEFAULT_FDA_DISCLAIMER, DEFAULT_STORAGE_US } from "../../constants";
 import { calcDV } from "../../lib/fdaDV";
 import { formatMedicinalIngredient, formatExcipientWithAllergen, collectAllergens, formatAllergenStatement, splitPurposes } from "../../lib/ingredientFormatters";
+import { buildCautionText } from "../../lib/labelData";
 
 function computeSpec(p) {
   const parts = [p.dosage_form_type, p.dosage_form_subtype].filter(Boolean).join(" ");
@@ -55,7 +56,7 @@ export default function LabelPreviewV2({ label, product, productName, excipients
         <div style={h}>{fr ? "DOSE RECOMMANDÉE (ADULTES)" : "RECOMMENDED DOSE (ADULTS)"}</div>
         <div style={b}>{fr ? s.recommended_dose_fr : (recommendedDose || "—")}</div>
         <div style={h}>{fr ? "MISES EN GARDE ET PRÉCAUTIONS" : "CAUTIONS AND WARNINGS"}</div>
-        <div style={b}>{fr ? (s.cautions_fr || "—") : (s.caution || "—")}</div>
+        <div style={b}>{buildCautionText(p, fr ? "fr" : "en") || "—"}</div>
         <div style={h}>{fr ? "Ingrédients médicinaux" : "Medicinal Ingredients"}</div>
         <div style={{ ...b, fontFamily: "monospace", fontSize: 12 }}>{fr ? (medicinalFr || "—") : (medicinalEn || "—")}</div>
         {authorizationClaims && (

@@ -1,29 +1,5 @@
 import { SECTION_DEFS, DEFAULT_STORAGE_US } from "../constants";
-import { getVal, getProduct, getProdDisplayName } from "./labelData";
-
-function buildCautionText(label, prod, lang) {
-  const fr = lang === "fr";
-  if (fr && label.cautions_fr) return label.cautions_fr;
-  if (!fr && label.caution) return label.caution;
-  const parts = [];
-  const add = (heading, items) => { if (items?.length) parts.push(`${heading} ${items.join(" ")}`); };
-  if (fr) {
-    add("Ne pas utiliser", prod.do_not_use_fr);
-    add("Consultez avant utilisation", prod.ask_before_use_fr);
-    add("Lorsque vous utilisez ce produit", prod.when_using_fr);
-    add("Cessez d'utiliser et consultez si", prod.stop_use_fr);
-    if (prod.known_adverse_fr?.length) parts.push(prod.known_adverse_fr.join(" "));
-    if (prod.other_warnings_fr?.length) parts.push(prod.other_warnings_fr.join(" "));
-  } else {
-    add("Do not use", prod.do_not_use_en);
-    add("Ask a doctor before use if you have", prod.ask_before_use_en);
-    add("When using this product", prod.when_using_en);
-    add("Stop use and ask a doctor if", prod.stop_use_en);
-    if (prod.known_adverse_en?.length) parts.push(prod.known_adverse_en.join(" "));
-    if (prod.other_warnings_en?.length) parts.push(prod.other_warnings_en.join(" "));
-  }
-  return parts.join("\n") || "";
-}
+import { getVal, getProduct, getProdDisplayName, buildCautionText } from "./labelData";
 
 export function buildExportText(label, products, excipientMap) {
   const s = label;
@@ -44,7 +20,7 @@ export function buildExportText(label, products, excipientMap) {
   if (isFDA) {
     t += `HEALTH CLAIMS:\n${prod.recommended_use || ""}\n`;
     t += `\nSUGGESTED DOSE (ADULTS):\n${v("recommended_dose")}\n`;
-    t += `\nCAUTIONS:\n${[buildCautionText(s, prod, "en"), s.risk_info].filter(Boolean).join("\n") || ""}\n`;
+    t += `\nCAUTIONS:\n${[buildCautionText(prod, "en"), s.risk_info].filter(Boolean).join("\n") || ""}\n`;
     t += `\nSTORAGE:\n${DEFAULT_STORAGE_US}\n`;
     t += `\nSupplement Facts\n`;
     t += `Serving Size: ${prod.dose_amount && prod.dosage_form_type ? `${prod.dose_amount} ${prod.dosage_form_type}` : "1 Capsule"}\n`;
@@ -58,8 +34,8 @@ export function buildExportText(label, products, excipientMap) {
     if (includeFr) t += `\nUTILISATION RECOMMANDÉE:\n${prod.recommended_use_fr || ""}\n`;
     t += `\nRECOMMENDED DOSE:\n${v("recommended_dose")}\n`;
     if (includeFr) t += `\nDOSE RECOMMANDÉE:\n${s.recommended_dose_fr || ""}\n`;
-    t += `\nCAUTIONS:\n${buildCautionText(s, prod, "en")}\n`;
-    if (includeFr) t += `\nMISES EN GARDE:\n${buildCautionText(s, prod, "fr")}\n`;
+    t += `\nCAUTIONS:\n${buildCautionText(prod, "en")}\n`;
+    if (includeFr) t += `\nMISES EN GARDE:\n${buildCautionText(prod, "fr")}\n`;
     t += `\nMedicinal Ingredients:\n${v("medicinal_en")}\n`;
     if (includeFr) t += `\nIngrédients médicinaux:\n${v("medicinal_fr")}\n`;
     t += `\nNon-Medicinal:\n${excipientMap[s.product_id] || ""}\n`;
@@ -72,7 +48,7 @@ export function buildExportText(label, products, excipientMap) {
       t += `\n\n=== 标签 2 (Français) ===\n\n`;
       t += `UTILISATION RECOMMANDÉE:\n${prod.recommended_use_fr || ""}\n`;
       t += `\nDOSE RECOMMANDÉE:\n${s.recommended_dose_fr || ""}\n`;
-      t += `\nMISES EN GARDE:\n${buildCautionText(s, prod, "fr")}\n`;
+      t += `\nMISES EN GARDE:\n${buildCautionText(prod, "fr")}\n`;
       t += `\nIngrédients médicinaux:\n${v("medicinal_fr")}\n`;
       t += `\nIngrédients non médicinaux:\n${s.non_medicinal_fr || ""}\n`;
       t += `\nRENSEIGNEMENTS SUR LES RISQUES:\n${s.risk_info_fr || ""}\n`;
