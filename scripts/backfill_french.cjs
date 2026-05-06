@@ -16,7 +16,8 @@ const fs = require("fs");
 const path = require("path");
 
 const SUPABASE_URL = "https://fotcnfwkzncsxbbvpdpw.supabase.co";
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZvdGNuZndrem5jc3hiYnZwZHB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0ODY0MDgsImV4cCI6MjA4ODA2MjQwOH0.0Y1OazcLFBP_FOg-_CIodPbt7-eepZ7CIDaib4E-XK0";
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
+if (!SUPABASE_KEY) { console.error("Set SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY"); process.exit(1); }
 const DRY_RUN = process.argv.includes("--dry-run");
 const CLEAN = "/Volumes/X10 Pro/health_canada_scraper/data/clean";
 
