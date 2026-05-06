@@ -3,12 +3,38 @@ import { DEFAULT_FDA_DISCLAIMER, DEFAULT_STORAGE_US } from "../../constants";
 import { calcDV } from "../../lib/fdaDV";
 import { formatMedicinalIngredient, formatExcipientWithAllergen, collectAllergens, formatAllergenStatement, splitPurposes } from "../../lib/ingredientFormatters";
 
+function computeSpec(p) {
+  const parts = [p.dosage_form_type, p.dosage_form_subtype].filter(Boolean).join(" ");
+  const npn = p.npn ? `NPN: ${p.npn}` : "";
+  return [parts, npn].filter(Boolean).join("  ") || "";
+}
+
+function computeRecommendedDose(p) {
+  if (!p.dose_amount && !p.dose_amount_max) return "";
+  const pop = p.dose_population || "Adults";
+  const doseMin = p.dose_amount || 1;
+  const doseMax = p.dose_amount_max;
+  const amount = doseMax && doseMax !== doseMin ? `${doseMin}-${doseMax}` : `${doseMin}`;
+  const unit = p.dose_unit || "capsule(s)";
+  const freqMin = p.dose_freq_min || "";
+  const freqMax = p.dose_freq_max || "";
+  const freqUnit = p.dose_freq_unit || "daily";
+  const times = freqMax && freqMax !== freqMin ? `${freqMin}-${freqMax}` : freqMin;
+  const timesStr = times
+    ? (String(times) === "1" ? freqUnit : `${times} time(s) ${freqUnit}`)
+    : freqUnit;
+  return `${pop}: Take ${amount} ${unit} ${timesStr}, or as directed by a health care practitioner.`.trim();
+}
+
 export default function LabelPreviewV2({ label, product, productName, excipients, excipientRows, ingredients, medicinalEn, medicinalFr, authorizationClaims }) {
   const s = label;
   const p = product || {};
   const box = { background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0", padding: "24px 28px", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" };
   const h = { fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6, marginTop: 16 };
   const b = { fontSize: 13, color: "#1e293b", lineHeight: 1.7, whiteSpace: "pre-wrap" };
+
+  const spec = computeSpec(p);
+  const recommendedDose = computeRecommendedDose(p);
 
   const renderOne = (lang) => {
     const fr = lang === "fr";
@@ -22,14 +48,14 @@ export default function LabelPreviewV2({ label, product, productName, excipients
         <div style={{ textAlign: "center", marginBottom: 12 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{productName || ""}</h2>
           {s.subtitle && <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{s.subtitle}</div>}
-          {s.spec && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{s.spec}</div>}
+          {spec && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{spec}</div>}
         </div>
         <div style={h}>{fr ? "UTILISATION RECOMMANDÉE" : "RECOMMENDED USE"}</div>
-        <div style={b}>{fr ? (p.recommended_use_fr || s.recommended_use_fr) : (p.recommended_use || s.recommended_use) || "—"}</div>
+        <div style={b}>{fr ? (p.recommended_use_fr || s.recommended_use_fr) : (p.recommended_use) || "—"}</div>
         <div style={h}>{fr ? "DOSE RECOMMANDÉE (ADULTES)" : "RECOMMENDED DOSE (ADULTS)"}</div>
-        <div style={b}>{fr ? s.recommended_dose_fr : p.recommended_dose || "—"}</div>
+        <div style={b}>{fr ? s.recommended_dose_fr : (recommendedDose || "—")}</div>
         <div style={h}>{fr ? "MISES EN GARDE ET PRÉCAUTIONS" : "CAUTIONS AND WARNINGS"}</div>
-        <div style={b}>{fr ? s.cautions_fr : s.caution || "—"}</div>
+        <div style={b}>{fr ? (s.cautions_fr || "—") : (s.caution || "—")}</div>
         <div style={h}>{fr ? "Ingrédients médicinaux" : "Medicinal Ingredients"}</div>
         <div style={{ ...b, fontFamily: "monospace", fontSize: 12 }}>{fr ? (medicinalFr || "—") : (medicinalEn || "—")}</div>
         {authorizationClaims && (
@@ -82,13 +108,13 @@ export default function LabelPreviewV2({ label, product, productName, excipients
             {s.subtitle && <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>{s.subtitle}</div>}
             <div style={{ fontSize: 11, color: "#64748b", marginTop: 6, letterSpacing: 1 }}>DIETARY SUPPLEMENT</div>
           </div>
-          {s.purposes_en?.length > 0 ? (
+          {p.purposes_en?.length > 0 ? (
             <div style={{ marginTop: 12, textAlign: "center", fontSize: 12, color: "#334155", fontStyle: "italic" }}>
-              {splitPurposes(s.purposes_en).join(" ")}
+              {splitPurposes(p.purposes_en).join(" ")}
             </div>
-          ) : s.recommended_use ? (
+          ) : p.recommended_use ? (
             <div style={{ marginTop: 12, textAlign: "center", fontSize: 12, color: "#334155", fontStyle: "italic" }}>
-              {s.recommended_use}
+              {p.recommended_use}
             </div>
           ) : null}
         </div>

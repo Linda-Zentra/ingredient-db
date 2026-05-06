@@ -16,14 +16,17 @@ export default function CommonNamePicker({ skuId, currentIngredientId, ingredien
   const suggestions = useMemo(() => {
     if (!input.trim()) return [];
     const q = input.toLowerCase();
-    return ingredientsList.filter(c => c.name?.toLowerCase().includes(q)).slice(0, 8);
+    return ingredientsList.filter(c =>
+      (c.scientific_name || c.name_en || '').toLowerCase().includes(q) ||
+      (c.name_en || '').toLowerCase().includes(q)
+    ).slice(0, 8);
   }, [input, ingredientsList]);
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
       {current ? (
         <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "5px 10px" }}>
-          <div style={{ flex: 1, fontSize: 12, color: "#15803d", fontWeight: 500 }}>{current.name}</div>
+          <div style={{ flex: 1, fontSize: 12, color: "#15803d", fontWeight: 500 }}>{current.scientific_name || current.name_en}</div>
           <button onClick={() => onChange(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 13, padding: 0 }}>×</button>
         </div>
       ) : (
@@ -38,7 +41,7 @@ export default function CommonNamePicker({ skuId, currentIngredientId, ingredien
               style={{ padding: "6px 10px", cursor: "pointer", fontSize: 12, borderBottom: "1px solid #f1f5f9" }}
               onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
               onMouseLeave={e => e.currentTarget.style.background = "#fff"}>
-              {c.name}
+              {c.scientific_name || c.name_en}
             </div>
           ))}
         </div>

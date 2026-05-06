@@ -29,7 +29,6 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
     dose_freq_max:       product?.dose_freq_max       ?? "",
     dose_freq_unit:      product?.dose_freq_unit      || "",
     recommended_use:     product?.recommended_use     || "",
-    caution:             product?.caution             || "",
     dose_population:     product?.dose_population     || "",
     dose_min_age:        product?.dose_min_age        ?? "",
     price_cad:           product?.price_cad           ?? "",
@@ -262,9 +261,6 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <Field label="Recommended Use">
             <textarea value={form.recommended_use} onChange={e => f("recommended_use", e.target.value)} rows={2} style={{ ...iS, resize: "vertical", fontFamily: "inherit" }} />
-          </Field>
-          <Field label="Cautions & Warnings">
-            <textarea value={form.caution} onChange={e => f("caution", e.target.value)} rows={2} style={{ ...iS, resize: "vertical", fontFamily: "inherit" }} />
           </Field>
           <div style={{ display: "flex", gap: 10 }}>
             <Field label="Dosage Form Type" style={{ flex: 1 }}>
