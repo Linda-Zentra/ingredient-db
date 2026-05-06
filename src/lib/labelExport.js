@@ -1,4 +1,4 @@
-import { SECTION_DEFS, DEFAULT_STORAGE_US } from "../constants";
+import { SECTION_DEFS, DEFAULT_STORAGE_US, DEFAULT_RISK, DEFAULT_RISK_FR } from "../constants";
 import { getVal, getProduct, getProdDisplayName, buildCautionText } from "./labelData";
 
 export function buildExportText(label, products, excipientMap) {
@@ -20,7 +20,7 @@ export function buildExportText(label, products, excipientMap) {
   if (isFDA) {
     t += `HEALTH CLAIMS:\n${prod.recommended_use || ""}\n`;
     t += `\nSUGGESTED DOSE (ADULTS):\n${v("recommended_dose")}\n`;
-    t += `\nCAUTIONS:\n${[buildCautionText(prod, "en"), s.risk_info].filter(Boolean).join("\n") || ""}\n`;
+    t += `\nCAUTIONS:\n${[buildCautionText(prod, "en"), s.risk_info || DEFAULT_RISK].filter(Boolean).join("\n")}\n`;
     t += `\nSTORAGE:\n${DEFAULT_STORAGE_US}\n`;
     t += `\nSupplement Facts\n`;
     t += `Serving Size: ${prod.dose_amount && prod.dosage_form_type ? `${prod.dose_amount} ${prod.dosage_form_type}` : "1 Capsule"}\n`;
@@ -40,8 +40,8 @@ export function buildExportText(label, products, excipientMap) {
     if (includeFr) t += `\nIngrédients médicinaux:\n${v("medicinal_fr")}\n`;
     t += `\nNon-Medicinal:\n${excipientMap[s.product_id] || ""}\n`;
     if (includeFr) t += `\nIngrédients non médicinaux:\n${s.non_medicinal_fr || ""}\n`;
-    t += `\nRISK INFORMATION:\n${s.risk_info || ""}\n`;
-    if (includeFr) t += `\nRENSEIGNEMENTS SUR LES RISQUES:\n${s.risk_info_fr || ""}\n`;
+    t += `\nRISK INFORMATION:\n${s.risk_info || DEFAULT_RISK}\n`;
+    if (includeFr) t += `\nRENSEIGNEMENTS SUR LES RISQUES:\n${s.risk_info_fr || DEFAULT_RISK_FR}\n`;
     t += `\nCOMPANY:\n${s.company_info || ""}\n`;
     if (s.side_bar) t += `\n---\n${s.side_bar}\n`;
     if (isDouble) {
@@ -51,7 +51,7 @@ export function buildExportText(label, products, excipientMap) {
       t += `\nMISES EN GARDE:\n${buildCautionText(prod, "fr")}\n`;
       t += `\nIngrédients médicinaux:\n${v("medicinal_fr")}\n`;
       t += `\nIngrédients non médicinaux:\n${s.non_medicinal_fr || ""}\n`;
-      t += `\nRENSEIGNEMENTS SUR LES RISQUES:\n${s.risk_info_fr || ""}\n`;
+      t += `\nRENSEIGNEMENTS SUR LES RISQUES:\n${s.risk_info_fr || DEFAULT_RISK_FR}\n`;
     }
   }
 

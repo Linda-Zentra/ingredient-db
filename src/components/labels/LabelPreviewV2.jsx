@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { DEFAULT_FDA_DISCLAIMER, DEFAULT_STORAGE_US } from "../../constants";
+import { DEFAULT_FDA_DISCLAIMER, DEFAULT_STORAGE_US, DEFAULT_RISK, DEFAULT_RISK_FR } from "../../constants";
 import { calcDV } from "../../lib/fdaDV";
 import { formatMedicinalIngredient, formatExcipientWithAllergen, collectAllergens, formatAllergenStatement, splitPurposes } from "../../lib/ingredientFormatters";
 import { buildCautionText } from "../../lib/labelData";
@@ -65,7 +65,7 @@ export default function LabelPreviewV2({ label, product, productName, excipients
         <div style={h}>{fr ? "Ingrédients non médicinaux" : "Non-Medicinal Ingredients"}</div>
         <div style={b}>{fr ? s.non_medicinal_fr : excipients || "—"}</div>
         <div style={{ marginTop: 16, padding: "10px 12px", background: "#fef3c7", borderRadius: 6, fontSize: 11, color: "#92400e", fontWeight: 500, lineHeight: 1.5 }}>
-          {fr ? s.risk_info_fr : s.risk_info || ""}
+          {fr ? (s.risk_info_fr || DEFAULT_RISK_FR) : (s.risk_info || DEFAULT_RISK)}
         </div>
         {s.licence_holder && <div style={{ marginTop: 10, fontSize: 11, color: "#64748b" }}>Licence Holder: {s.licence_holder}</div>}
         <div style={{ marginTop: 8, fontSize: 11, color: "#64748b", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{s.company_info || ""}</div>
