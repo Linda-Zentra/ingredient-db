@@ -28,17 +28,25 @@ export function buildCautionText(prod, lang) {
   if (!prod) return "";
   const fr = lang === "fr";
   const parts = [];
-  const add = (heading, items) => { if (items?.length) parts.push(`${heading} ${items.join(" ")}`); };
+  const add = (heading, items) => {
+    if (!items?.length) return;
+    const text = items.join(" ");
+    if (text.toLowerCase().startsWith(heading.toLowerCase().split(" ")[0])) {
+      parts.push(text);
+    } else {
+      parts.push(`${heading}: ${text}`);
+    }
+  };
   if (fr) {
-    add("Ne pas utiliser", prod.do_not_use_fr);
-    add("Consultez avant utilisation", prod.ask_before_use_fr);
-    add("Lorsque vous utilisez ce produit", prod.when_using_fr);
-    add("Cessez d'utiliser et consultez si", prod.stop_use_fr);
+    add("Ne pas utiliser si", prod.do_not_use_fr);
+    add("Consulter un praticien si", prod.ask_before_use_fr);
+    add("Lors de l'utilisation", prod.when_using_fr);
+    add("Cesser l'utilisation si", prod.stop_use_fr);
     if (prod.known_adverse_fr?.length) parts.push(prod.known_adverse_fr.join(" "));
     if (prod.other_warnings_fr?.length) parts.push(prod.other_warnings_fr.join(" "));
   } else {
-    add("Do not use", prod.do_not_use_en);
-    add("Ask a doctor before use if you have", prod.ask_before_use_en);
+    add("Do not use if", prod.do_not_use_en);
+    add("Consult a health care practitioner prior to use if", prod.ask_before_use_en);
     add("When using this product", prod.when_using_en);
     add("Stop use and ask a doctor if", prod.stop_use_en);
     if (prod.known_adverse_en?.length) parts.push(prod.known_adverse_en.join(" "));
