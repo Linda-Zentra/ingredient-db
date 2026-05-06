@@ -16,16 +16,11 @@ const fs = require("fs");
 const path = require("path");
 
 const SUPABASE_URL = "https://fotcnfwkzncsxbbvpdpw.supabase.co";
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZvdGNuZndrem5jc3hiYnZwZHB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0ODY0MDgsImV4cCI6MjA4ODA2MjQwOH0.0Y1OazcLFBP_FOg-_CIodPbt7-eepZ7CIDaib4E-XK0";
 const DRY_RUN = process.argv.includes("--dry-run");
 const CLEAN = "/Volumes/X10 Pro/health_canada_scraper/data/clean";
 
-if (!SERVICE_KEY && !DRY_RUN) {
-  console.error("Set SUPABASE_SERVICE_KEY or use --dry-run");
-  process.exit(1);
-}
-
-const supabase = SERVICE_KEY ? createClient(SUPABASE_URL, SERVICE_KEY) : null;
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 function loadClean(name) {
   const p = path.join(CLEAN, name + ".json");
@@ -79,7 +74,7 @@ async function main() {
 
   // ── 1. Backfill products French fields ──
   console.log("\n── Products ──");
-  const products = await fetchAll("products", "id, purposes_en, purposes_fr, do_not_use_en, do_not_use_fr, ask_before_use_en, ask_before_use_fr, when_using_en, when_using_fr, stop_use_en, stop_use_fr, known_adverse_en, known_adverse_fr, other_warnings_en, other_warnings_fr, other_information_en, other_information_fr");
+  const products = await fetchAll("products", "id, recommended_use, recommended_use_fr, purposes_en, purposes_fr, do_not_use_en, do_not_use_fr, ask_before_use_en, ask_before_use_fr, when_using_en, when_using_fr, stop_use_en, stop_use_fr, known_adverse_en, known_adverse_fr, other_warnings_en, other_warnings_fr, other_information_en, other_information_fr");
 
   function translateArr(arr, map) {
     return (arr || []).map(s => map[s.trim()] || null).filter(Boolean);
@@ -94,6 +89,12 @@ async function main() {
     if ((!p.purposes_fr || p.purposes_fr.length === 0) && p.purposes_en?.length > 0) {
       const fr = translateArr(p.purposes_en, purposeMap);
       if (fr.length > 0) { update.purposes_fr = fr; changed = true; }
+    }
+
+    // recommended_use_fr
+    if ((!p.recommended_use_fr || p.recommended_use_fr === "S.O.") && p.recommended_use) {
+      const fr = purposeMap[p.recommended_use.trim()];
+      if (fr) { update.recommended_use_fr = fr; changed = true; }
     }
 
     // Warning fields
