@@ -1,12 +1,39 @@
-import { SECTION_DEFS, DEFAULT_STORAGE_US } from "../constants";
-import { getVal, getProduct, getProdDisplayName } from "./labelData";
+import { SECTION_DEFS, DEFAULT_STORAGE_US, DEFAULT_RISK, DEFAULT_RISK_FR } from "../constants";
+import { getVal, getProduct, getProdDisplayName, buildCautionText } from "./labelData";
 
-export function buildExportText(label, products, excipientMap) {
+const FREQ_UNIT_FR = {
+  daily: "par jour", "per day": "par jour", "per week": "par semaine",
+  weekly: "par semaine", "per month": "par mois",
+};
+
+function computeRecommendedDoseFr(prod) {
+  if (!prod.dose_amount && !prod.dose_amount_max) return "";
+  const pop = prod.dose_population === "Adults" ? "Adultes" : (prod.dose_population || "Adultes");
+  const doseMin = prod.dose_amount || 1;
+  const doseMax = prod.dose_amount_max;
+  const amount = doseMax && doseMax !== doseMin ? `${doseMin}-${doseMax}` : `${doseMin}`;
+  const unit = prod.dose_unit || "capsule(s)";
+  const freqMin = prod.dose_freq_min || "";
+  const freqMax = prod.dose_freq_max || "";
+  const rawUnit = prod.dose_freq_unit || "daily";
+  const freqUnit = FREQ_UNIT_FR[rawUnit.toLowerCase()] || rawUnit;
+  const times = freqMax && freqMax !== freqMin ? `${freqMin}-${freqMax}` : freqMin;
+  const timesStr = times
+    ? (String(times) === "1" ? freqUnit : `${times} fois ${freqUnit}`)
+    : freqUnit;
+  return `${pop} : Prendre ${amount} ${unit} ${timesStr}, ou selon les directives d'un praticien de soins de santé.`.trim();
+}
+
+export function buildExportText(label, products, excipientMap, excipientMapFr) {
   const s = label;
+  const prod = getProduct(products, label) || {};
   const isDouble = s.label_type === "double";
   const isFDA = s.label_type === "us_fda";
   const includeFr = !isDouble && !isFDA;
   const v = (key) => getVal(SECTION_DEFS.find(d => d.key === key), s, products, excipientMap);
+
+  const doseFr = computeRecommendedDoseFr(prod);
+  const nonMedFr = (excipientMapFr || {})[s.product_id] || "";
 
   let t = isFDA
     ? `=== FDA / US Label ===\n\n`
@@ -17,48 +44,48 @@ export function buildExportText(label, products, excipientMap) {
   t += "\n";
 
   if (isFDA) {
-    t += `HEALTH CLAIMS:\n${s.recommended_use || ""}\n`;
+    t += `HEALTH CLAIMS:\n${prod.recommended_use || ""}\n`;
     t += `\nSUGGESTED DOSE (ADULTS):\n${v("recommended_dose")}\n`;
-    t += `\nCAUTIONS:\n${[s.caution, s.risk_info].filter(Boolean).join("\n") || ""}\n`;
+    t += `\nCAUTIONS:\n${[buildCautionText(prod, "en"), s.risk_info || DEFAULT_RISK].filter(Boolean).join("\n")}\n`;
     t += `\nSTORAGE:\n${DEFAULT_STORAGE_US}\n`;
     t += `\nSupplement Facts\n`;
-    t += `Serving Size: ${s.serving_size || "1 Capsule"}\n`;
+    t += `Serving Size: ${prod.dose_amount && prod.dosage_form_type ? `${prod.dose_amount} ${prod.dosage_form_type}` : "1 Capsule"}\n`;
     t += `\nMedicinal Ingredients (Amount Per Serving / %DV):\n${v("medicinal_en")}\n`;
     t += `† Daily Value not Established.\n`;
     t += `\nOther Ingredients:\n${excipientMap[s.product_id] || ""}\n`;
     t += `\n*These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease.\n`;
     t += `\nDistributor:\n${s.company_info || ""}\n`;
   } else {
-    t += `RECOMMENDED USE:\n${s.recommended_use || ""}\n`;
-    if (includeFr) t += `\nUTILISATION RECOMMANDÉE:\n${s.recommended_use_fr || ""}\n`;
+    t += `RECOMMENDED USE:\n${prod.recommended_use || ""}\n`;
+    if (includeFr) t += `\nUTILISATION RECOMMANDÉE:\n${prod.recommended_use_fr || ""}\n`;
     t += `\nRECOMMENDED DOSE:\n${v("recommended_dose")}\n`;
-    if (includeFr) t += `\nDOSE RECOMMANDÉE:\n${s.recommended_dose_fr || ""}\n`;
-    t += `\nCAUTIONS:\n${s.caution || ""}\n`;
-    if (includeFr) t += `\nMISES EN GARDE:\n${s.cautions_fr || ""}\n`;
+    if (includeFr) t += `\nDOSE RECOMMANDÉE:\n${doseFr}\n`;
+    t += `\nCAUTIONS:\n${buildCautionText(prod, "en")}\n`;
+    if (includeFr) t += `\nMISES EN GARDE:\n${buildCautionText(prod, "fr")}\n`;
     t += `\nMedicinal Ingredients:\n${v("medicinal_en")}\n`;
-    if (includeFr) t += `\nIngrédients médicinaux:\n${s.medicinal_fr || ""}\n`;
+    if (includeFr) t += `\nIngrédients médicinaux:\n${v("medicinal_fr")}\n`;
     t += `\nNon-Medicinal:\n${excipientMap[s.product_id] || ""}\n`;
-    if (includeFr) t += `\nIngrédients non médicinaux:\n${s.non_medicinal_fr || ""}\n`;
-    t += `\n${s.risk_info || ""}\n`;
-    if (includeFr) t += `${s.risk_info_fr || ""}\n`;
-    t += `\n${s.company_info || ""}\n`;
+    if (includeFr) t += `\nIngrédients non médicinaux:\n${nonMedFr}\n`;
+    t += `\nRISK INFORMATION:\n${s.risk_info || DEFAULT_RISK}\n`;
+    if (includeFr) t += `\nRENSEIGNEMENTS SUR LES RISQUES:\n${s.risk_info_fr || DEFAULT_RISK_FR}\n`;
+    t += `\nCOMPANY:\n${s.company_info || ""}\n`;
     if (s.side_bar) t += `\n---\n${s.side_bar}\n`;
     if (isDouble) {
       t += `\n\n=== 标签 2 (Français) ===\n\n`;
-      t += `UTILISATION RECOMMANDÉE:\n${s.recommended_use_fr || ""}\n`;
-      t += `\nDOSE RECOMMANDÉE:\n${s.recommended_dose_fr || ""}\n`;
-      t += `\nMISES EN GARDE:\n${s.cautions_fr || ""}\n`;
-      t += `\nIngrédients médicinaux:\n${s.medicinal_fr || ""}\n`;
-      t += `\nIngrédients non médicinaux:\n${s.non_medicinal_fr || ""}\n`;
-      t += `\n${s.risk_info_fr || ""}\n`;
+      t += `UTILISATION RECOMMANDÉE:\n${prod.recommended_use_fr || ""}\n`;
+      t += `\nDOSE RECOMMANDÉE:\n${doseFr}\n`;
+      t += `\nMISES EN GARDE:\n${buildCautionText(prod, "fr")}\n`;
+      t += `\nIngrédients médicinaux:\n${v("medicinal_fr")}\n`;
+      t += `\nIngrédients non médicinaux:\n${nonMedFr}\n`;
+      t += `\nRENSEIGNEMENTS SUR LES RISQUES:\n${s.risk_info_fr || DEFAULT_RISK_FR}\n`;
     }
   }
 
   return t;
 }
 
-export function downloadLabelText(label, products, excipientMap) {
-  const text = buildExportText(label, products, excipientMap);
+export function downloadLabelText(label, products, excipientMap, excipientMapFr) {
+  const text = buildExportText(label, products, excipientMap, excipientMapFr);
   const prod = getProduct(products, label);
   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const a = document.createElement("a");

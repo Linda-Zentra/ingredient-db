@@ -13,6 +13,7 @@ export default function LabelTab() {
   const [labels, setLabels] = useState([]);
   const [products, setProducts] = useState([]);
   const [excipientMap, setExcipientMap] = useState({});
+  const [excipientMapFr, setExcipientMapFr] = useState({});
   const [excipientRowsMap, setExcipientRowsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -31,8 +32,8 @@ export default function LabelTab() {
     f.subtitle = label.subtitle || "";
     f.company_info = label.company_info || "";
     f.licence_holder = label.licence_holder || "";
-    f.risk_info = label.risk_info || "";
-    f.risk_info_fr = label.risk_info_fr || "";
+    f.risk_info = label.risk_info || DEFAULT_RISK;
+    f.risk_info_fr = label.risk_info_fr || DEFAULT_RISK_FR;
     f.side_bar = label.side_bar || "";
     setForm(f);
   };
@@ -54,6 +55,7 @@ export default function LabelTab() {
       setProducts(prods);
       const maps = buildExcipientMaps(prods);
       setExcipientMap(maps.excipientMap);
+      setExcipientMapFr(maps.excipientMapFr);
       setExcipientRowsMap(maps.excipientRowsMap);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -97,7 +99,8 @@ export default function LabelTab() {
         side_bar: form.side_bar || null,
         updated_at: new Date().toISOString(),
       };
-      await supabase.from("labels").update(labelPayload).eq("id", selected.id);
+      const { error: lblErr } = await supabase.from("labels").update(labelPayload).eq("id", selected.id);
+      if (lblErr) throw new Error("保存标签失败: " + lblErr.message);
 
       // Save product-level structured fields (warnings, purposes)
       const prod = getProduct(products, selected);
@@ -141,7 +144,7 @@ export default function LabelTab() {
   const handleExport = () => {
     if (!selected) return;
     const prod = getProduct(products, selected);
-    downloadLabelText(prod || selected, products, excipientMap);
+    downloadLabelText(selected, products, excipientMap, excipientMapFr);
   };
 
   const handleRefresh = async () => {

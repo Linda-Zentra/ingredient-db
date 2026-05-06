@@ -1,7 +1,31 @@
 import { Fragment } from "react";
-import { DEFAULT_FDA_DISCLAIMER, DEFAULT_STORAGE_US } from "../../constants";
+import { DEFAULT_FDA_DISCLAIMER, DEFAULT_STORAGE_US, DEFAULT_RISK, DEFAULT_RISK_FR } from "../../constants";
 import { calcDV } from "../../lib/fdaDV";
 import { formatMedicinalIngredient, formatExcipientWithAllergen, collectAllergens, formatAllergenStatement, splitPurposes } from "../../lib/ingredientFormatters";
+import { buildCautionText } from "../../lib/labelData";
+
+function computeSpec(p) {
+  const parts = [p.dosage_form_type, p.dosage_form_subtype].filter(Boolean).join(" ");
+  const npn = p.npn ? `NPN: ${p.npn}` : "";
+  return [parts, npn].filter(Boolean).join("  ") || "";
+}
+
+function computeRecommendedDose(p) {
+  if (!p.dose_amount && !p.dose_amount_max) return "";
+  const pop = p.dose_population || "Adults";
+  const doseMin = p.dose_amount || 1;
+  const doseMax = p.dose_amount_max;
+  const amount = doseMax && doseMax !== doseMin ? `${doseMin}-${doseMax}` : `${doseMin}`;
+  const unit = p.dose_unit || "capsule(s)";
+  const freqMin = p.dose_freq_min || "";
+  const freqMax = p.dose_freq_max || "";
+  const freqUnit = p.dose_freq_unit || "daily";
+  const times = freqMax && freqMax !== freqMin ? `${freqMin}-${freqMax}` : freqMin;
+  const timesStr = times
+    ? (String(times) === "1" ? freqUnit : `${times} time(s) ${freqUnit}`)
+    : freqUnit;
+  return `${pop}: Take ${amount} ${unit} ${timesStr}, or as directed by a health care practitioner.`.trim();
+}
 
 export default function LabelPreviewV2({ label, product, productName, excipients, excipientRows, ingredients, medicinalEn, medicinalFr, authorizationClaims }) {
   const s = label;
@@ -9,6 +33,9 @@ export default function LabelPreviewV2({ label, product, productName, excipients
   const box = { background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0", padding: "24px 28px", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" };
   const h = { fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6, marginTop: 16 };
   const b = { fontSize: 13, color: "#1e293b", lineHeight: 1.7, whiteSpace: "pre-wrap" };
+
+  const spec = computeSpec(p);
+  const recommendedDose = computeRecommendedDose(p);
 
   const renderOne = (lang) => {
     const fr = lang === "fr";
@@ -22,14 +49,14 @@ export default function LabelPreviewV2({ label, product, productName, excipients
         <div style={{ textAlign: "center", marginBottom: 12 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{productName || ""}</h2>
           {s.subtitle && <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{s.subtitle}</div>}
-          {s.spec && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{s.spec}</div>}
+          {spec && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{spec}</div>}
         </div>
         <div style={h}>{fr ? "UTILISATION RECOMMANDÉE" : "RECOMMENDED USE"}</div>
-        <div style={b}>{fr ? (p.recommended_use_fr || s.recommended_use_fr) : (p.recommended_use || s.recommended_use) || "—"}</div>
+        <div style={b}>{fr ? (p.recommended_use_fr || s.recommended_use_fr) : (p.recommended_use) || "—"}</div>
         <div style={h}>{fr ? "DOSE RECOMMANDÉE (ADULTES)" : "RECOMMENDED DOSE (ADULTS)"}</div>
-        <div style={b}>{fr ? s.recommended_dose_fr : p.recommended_dose || "—"}</div>
+        <div style={b}>{fr ? s.recommended_dose_fr : (recommendedDose || "—")}</div>
         <div style={h}>{fr ? "MISES EN GARDE ET PRÉCAUTIONS" : "CAUTIONS AND WARNINGS"}</div>
-        <div style={b}>{fr ? s.cautions_fr : s.caution || "—"}</div>
+        <div style={b}>{buildCautionText(p, fr ? "fr" : "en") || "—"}</div>
         <div style={h}>{fr ? "Ingrédients médicinaux" : "Medicinal Ingredients"}</div>
         <div style={{ ...b, fontFamily: "monospace", fontSize: 12 }}>{fr ? (medicinalFr || "—") : (medicinalEn || "—")}</div>
         {authorizationClaims && (
@@ -38,7 +65,7 @@ export default function LabelPreviewV2({ label, product, productName, excipients
         <div style={h}>{fr ? "Ingrédients non médicinaux" : "Non-Medicinal Ingredients"}</div>
         <div style={b}>{fr ? s.non_medicinal_fr : excipients || "—"}</div>
         <div style={{ marginTop: 16, padding: "10px 12px", background: "#fef3c7", borderRadius: 6, fontSize: 11, color: "#92400e", fontWeight: 500, lineHeight: 1.5 }}>
-          {fr ? s.risk_info_fr : s.risk_info || ""}
+          {fr ? (s.risk_info_fr || DEFAULT_RISK_FR) : (s.risk_info || DEFAULT_RISK)}
         </div>
         {s.licence_holder && <div style={{ marginTop: 10, fontSize: 11, color: "#64748b" }}>Licence Holder: {s.licence_holder}</div>}
         <div style={{ marginTop: 8, fontSize: 11, color: "#64748b", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{s.company_info || ""}</div>
@@ -82,13 +109,13 @@ export default function LabelPreviewV2({ label, product, productName, excipients
             {s.subtitle && <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>{s.subtitle}</div>}
             <div style={{ fontSize: 11, color: "#64748b", marginTop: 6, letterSpacing: 1 }}>DIETARY SUPPLEMENT</div>
           </div>
-          {s.purposes_en?.length > 0 ? (
+          {p.purposes_en?.length > 0 ? (
             <div style={{ marginTop: 12, textAlign: "center", fontSize: 12, color: "#334155", fontStyle: "italic" }}>
-              {splitPurposes(s.purposes_en).join(" ")}
+              {splitPurposes(p.purposes_en).join(" ")}
             </div>
-          ) : s.recommended_use ? (
+          ) : p.recommended_use ? (
             <div style={{ marginTop: 12, textAlign: "center", fontSize: 12, color: "#334155", fontStyle: "italic" }}>
-              {s.recommended_use}
+              {p.recommended_use}
             </div>
           ) : null}
         </div>

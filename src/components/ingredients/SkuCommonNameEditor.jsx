@@ -20,7 +20,7 @@ export default function SkuCommonNameEditor({ skuId, currentIngredientId, ingred
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 13, color: current ? "#15803d" : "#94a3b8" }}>
-          {current ? current.name : "未关联通用名"}
+          {current ? (current.scientific_name || current.name_en) : "未关联通用名"}
         </span>
         <button onClick={() => setEditing(true)} style={{ fontSize: 11, padding: "2px 8px", border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", color: "#475569" }}>
           {current ? "修改" : "关联"}

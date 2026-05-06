@@ -12,13 +12,47 @@ export function getProdDisplayName(prod) {
 
 export function buildExcipientMaps(products) {
   const excipientMap = {};
+  const excipientMapFr = {};
   const excipientRowsMap = {};
   products.forEach(p => {
     const names = (p.product_excipients || []).map(pe => pe.excipients?.name).filter(Boolean);
+    const namesFr = (p.product_excipients || []).map(pe => pe.excipients?.name_fr || pe.excipients?.name).filter(Boolean);
     if (names.length) excipientMap[p.id] = names.join(", ");
+    if (namesFr.length) excipientMapFr[p.id] = namesFr.join(", ");
     if (p.product_excipients?.length) excipientRowsMap[p.id] = p.product_excipients;
   });
-  return { excipientMap, excipientRowsMap };
+  return { excipientMap, excipientMapFr, excipientRowsMap };
+}
+
+export function buildCautionText(prod, lang) {
+  if (!prod) return "";
+  const fr = lang === "fr";
+  const parts = [];
+  const add = (heading, items) => {
+    if (!items?.length) return;
+    const text = items.join(" ");
+    if (text.toLowerCase().startsWith(heading.toLowerCase().split(" ")[0])) {
+      parts.push(text);
+    } else {
+      parts.push(`${heading}: ${text}`);
+    }
+  };
+  if (fr) {
+    add("Ne pas utiliser si", prod.do_not_use_fr);
+    add("Consulter un praticien si", prod.ask_before_use_fr);
+    add("Lors de l'utilisation", prod.when_using_fr);
+    add("Cesser l'utilisation si", prod.stop_use_fr);
+    if (prod.known_adverse_fr?.length) parts.push(prod.known_adverse_fr.join(" "));
+    if (prod.other_warnings_fr?.length) parts.push(prod.other_warnings_fr.join(" "));
+  } else {
+    add("Do not use if", prod.do_not_use_en);
+    add("Consult a health care practitioner prior to use if", prod.ask_before_use_en);
+    add("When using this product", prod.when_using_en);
+    add("Stop use and ask a doctor if", prod.stop_use_en);
+    if (prod.known_adverse_en?.length) parts.push(prod.known_adverse_en.join(" "));
+    if (prod.other_warnings_en?.length) parts.push(prod.other_warnings_en.join(" "));
+  }
+  return parts.join("\n") || "";
 }
 
 export function getVal(sec, label, products, excipientMap) {

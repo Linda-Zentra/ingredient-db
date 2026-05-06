@@ -64,7 +64,7 @@ export default function ProductTab({ skus }) {
           sort_order: pi.sort_order ?? 0,
         })),
         excipients: (p.product_excipients || []).map(pe => ({
-          id: pe.id,
+          id: pe.excipient_id,
           excipient_id: pe.excipient_id,
           name: pe.excipients?.name || "—",
         })),
