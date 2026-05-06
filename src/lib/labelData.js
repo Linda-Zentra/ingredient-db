@@ -12,13 +12,16 @@ export function getProdDisplayName(prod) {
 
 export function buildExcipientMaps(products) {
   const excipientMap = {};
+  const excipientMapFr = {};
   const excipientRowsMap = {};
   products.forEach(p => {
     const names = (p.product_excipients || []).map(pe => pe.excipients?.name).filter(Boolean);
+    const namesFr = (p.product_excipients || []).map(pe => pe.excipients?.name_fr || pe.excipients?.name).filter(Boolean);
     if (names.length) excipientMap[p.id] = names.join(", ");
+    if (namesFr.length) excipientMapFr[p.id] = namesFr.join(", ");
     if (p.product_excipients?.length) excipientRowsMap[p.id] = p.product_excipients;
   });
-  return { excipientMap, excipientRowsMap };
+  return { excipientMap, excipientMapFr, excipientRowsMap };
 }
 
 export function buildCautionText(prod, lang) {

@@ -1,13 +1,33 @@
 import { SECTION_DEFS, DEFAULT_STORAGE_US, DEFAULT_RISK, DEFAULT_RISK_FR } from "../constants";
 import { getVal, getProduct, getProdDisplayName, buildCautionText } from "./labelData";
 
-export function buildExportText(label, products, excipientMap) {
+function computeRecommendedDoseFr(prod) {
+  if (!prod.dose_amount && !prod.dose_amount_max) return "";
+  const pop = prod.dose_population || "Adultes";
+  const doseMin = prod.dose_amount || 1;
+  const doseMax = prod.dose_amount_max;
+  const amount = doseMax && doseMax !== doseMin ? `${doseMin}-${doseMax}` : `${doseMin}`;
+  const unit = prod.dose_unit || "capsule(s)";
+  const freqMin = prod.dose_freq_min || "";
+  const freqMax = prod.dose_freq_max || "";
+  const freqUnit = prod.dose_freq_unit || "par jour";
+  const times = freqMax && freqMax !== freqMin ? `${freqMin}-${freqMax}` : freqMin;
+  const timesStr = times
+    ? (String(times) === "1" ? freqUnit : `${times} fois ${freqUnit}`)
+    : freqUnit;
+  return `${pop} : Prendre ${amount} ${unit} ${timesStr}, ou selon les directives d'un praticien de soins de santé.`.trim();
+}
+
+export function buildExportText(label, products, excipientMap, excipientMapFr) {
   const s = label;
   const prod = getProduct(products, label) || {};
   const isDouble = s.label_type === "double";
   const isFDA = s.label_type === "us_fda";
   const includeFr = !isDouble && !isFDA;
   const v = (key) => getVal(SECTION_DEFS.find(d => d.key === key), s, products, excipientMap);
+
+  const doseFr = computeRecommendedDoseFr(prod);
+  const nonMedFr = (excipientMapFr || {})[s.product_id] || "";
 
   let t = isFDA
     ? `=== FDA / US Label ===\n\n`
@@ -33,13 +53,13 @@ export function buildExportText(label, products, excipientMap) {
     t += `RECOMMENDED USE:\n${prod.recommended_use || ""}\n`;
     if (includeFr) t += `\nUTILISATION RECOMMANDÉE:\n${prod.recommended_use_fr || ""}\n`;
     t += `\nRECOMMENDED DOSE:\n${v("recommended_dose")}\n`;
-    if (includeFr) t += `\nDOSE RECOMMANDÉE:\n${s.recommended_dose_fr || ""}\n`;
+    if (includeFr) t += `\nDOSE RECOMMANDÉE:\n${doseFr}\n`;
     t += `\nCAUTIONS:\n${buildCautionText(prod, "en")}\n`;
     if (includeFr) t += `\nMISES EN GARDE:\n${buildCautionText(prod, "fr")}\n`;
     t += `\nMedicinal Ingredients:\n${v("medicinal_en")}\n`;
     if (includeFr) t += `\nIngrédients médicinaux:\n${v("medicinal_fr")}\n`;
     t += `\nNon-Medicinal:\n${excipientMap[s.product_id] || ""}\n`;
-    if (includeFr) t += `\nIngrédients non médicinaux:\n${s.non_medicinal_fr || ""}\n`;
+    if (includeFr) t += `\nIngrédients non médicinaux:\n${nonMedFr}\n`;
     t += `\nRISK INFORMATION:\n${s.risk_info || DEFAULT_RISK}\n`;
     if (includeFr) t += `\nRENSEIGNEMENTS SUR LES RISQUES:\n${s.risk_info_fr || DEFAULT_RISK_FR}\n`;
     t += `\nCOMPANY:\n${s.company_info || ""}\n`;
@@ -47,10 +67,10 @@ export function buildExportText(label, products, excipientMap) {
     if (isDouble) {
       t += `\n\n=== 标签 2 (Français) ===\n\n`;
       t += `UTILISATION RECOMMANDÉE:\n${prod.recommended_use_fr || ""}\n`;
-      t += `\nDOSE RECOMMANDÉE:\n${s.recommended_dose_fr || ""}\n`;
+      t += `\nDOSE RECOMMANDÉE:\n${doseFr}\n`;
       t += `\nMISES EN GARDE:\n${buildCautionText(prod, "fr")}\n`;
       t += `\nIngrédients médicinaux:\n${v("medicinal_fr")}\n`;
-      t += `\nIngrédients non médicinaux:\n${s.non_medicinal_fr || ""}\n`;
+      t += `\nIngrédients non médicinaux:\n${nonMedFr}\n`;
       t += `\nRENSEIGNEMENTS SUR LES RISQUES:\n${s.risk_info_fr || DEFAULT_RISK_FR}\n`;
     }
   }
@@ -58,8 +78,8 @@ export function buildExportText(label, products, excipientMap) {
   return t;
 }
 
-export function downloadLabelText(label, products, excipientMap) {
-  const text = buildExportText(label, products, excipientMap);
+export function downloadLabelText(label, products, excipientMap, excipientMapFr) {
+  const text = buildExportText(label, products, excipientMap, excipientMapFr);
   const prod = getProduct(products, label);
   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const a = document.createElement("a");
