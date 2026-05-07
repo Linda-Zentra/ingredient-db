@@ -117,7 +117,10 @@ export default function IngredientTab() {
         await supabase.from("sku_forms").insert(forms.map((f, i) => ({
           sku_id: skuId, name_en: f.name_en, name_fr: f.name_fr || null,
           amount: f.amount ? parseFloat(f.amount) : null, unit: f.unit || null,
-          note: f.note || null, show_contains: f.show_contains !== false, sort_order: i,
+          note: f.note || null, show_contains: f.show_contains || false,
+          contains_name_en: f.contains_name_en || null, contains_name_fr: f.contains_name_fr || null,
+          contains_amount: f.contains_amount ? parseFloat(f.contains_amount) : null,
+          contains_unit: f.contains_unit || null, sort_order: i,
         })));
       }
     }
