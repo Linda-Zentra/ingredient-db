@@ -61,13 +61,15 @@ export function formatMedicinalIngredient(pmi) {
   }
 
   const sortedForms = [...skuForms].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-  const formLines = sortedForms.map(f => {
-    const prefix = f.show_contains !== false ? 'Contains ' : '';
-    const amt = f.amount && f.unit ? ` ${f.amount} ${f.unit}` : '';
-    const note = f.note ? ` (${f.note})` : '';
-    return `${prefix}${f.name_en}${amt}${note}`;
-  });
-  const line2 = formLines.length > 0 ? formLines.join('\n') : null;
+  const lines = [];
+  for (const f of sortedForms) {
+    if (f.note) lines.push(`(${f.note})`);
+    if (f.show_contains && f.name_en) {
+      const amt = f.amount && f.unit ? ` ${f.amount} ${f.unit}` : '';
+      lines.push(`Contains ${f.name_en}${amt}`);
+    }
+  }
+  const line2 = lines.length > 0 ? lines.join('\n') : null;
 
   return { nameCol: `${displayName}${sourceSuffix}`, qtyCol: qty, line2, brandName, skuForms };
 }
