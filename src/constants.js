@@ -93,7 +93,7 @@ export const SECTION_DEFS = [
   { key: "recommended_use",     label: "4. Recommended Use",          source: "label" },
   { key: "recommended_use_fr",  label: "4b. Utilisation Recommandée", source: "label", fr: true },
   { key: "recommended_dose",    label: "5. Recommended Dose",         source: "computed" },
-  { key: "recommended_dose_fr", label: "5b. Dose Recommandée",        source: "label", fr: true },
+  { key: "recommended_dose_fr", label: "5b. Dose Recommandée",        source: "computed", fr: true },
   { key: "caution",             label: "6. Cautions & Warnings",      source: "label" },
   { key: "cautions_fr",         label: "6b. Mises en garde",          source: "label", fr: true },
   { key: "medicinal_en",        label: "7. Medicinal Ingredients",    source: "computed" },

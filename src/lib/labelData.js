@@ -92,6 +92,24 @@ export function getVal(sec, label, products, excipientMap) {
         return `${pop}: Take ${amount} ${unit} ${timesStr}, or as directed by a health care practitioner.`.trim();
       }
 
+      case "recommended_dose_fr": {
+        if (!prod?.dose_amount && !prod?.dose_amount_max) return "";
+        const pop = prod.dose_population === "Adults" ? "Adultes" : (prod.dose_population || "Adultes");
+        const doseMin = prod.dose_amount || 1;
+        const doseMax = prod.dose_amount_max;
+        const amount = doseMax && doseMax !== doseMin ? `${doseMin}-${doseMax}` : `${doseMin}`;
+        const unit = prod.dose_unit || "capsule(s)";
+        const freqMin = prod.dose_freq_min || "";
+        const freqMax = prod.dose_freq_max || "";
+        const freqMap = { daily: "par jour", "per day": "par jour", "per week": "par semaine" };
+        const freqUnit = freqMap[(prod.dose_freq_unit || "").toLowerCase()] || prod.dose_freq_unit || "par jour";
+        const times = freqMax && freqMax !== freqMin ? `${freqMin}-${freqMax}` : freqMin;
+        const timesStr = times
+          ? (String(times) === "1" ? freqUnit : `${times} fois ${freqUnit}`)
+          : freqUnit;
+        return `${pop} : Prendre ${amount} ${unit} ${timesStr}, ou selon les directives d'un praticien de soins de santé.`.trim();
+      }
+
       case "medicinal_en": {
         const ingredients = prod?.product_ingredients || [];
         return sortMedicinalIngredients(ingredients)
