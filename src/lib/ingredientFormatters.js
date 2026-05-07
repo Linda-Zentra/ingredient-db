@@ -14,6 +14,7 @@ const SPECIAL_PARTS = ['resin', 'oil', 'juice'];
 export function formatMedicinalIngredient(pmi) {
   const {
     ingredients: ci,
+    skus: sku,
     amount_value,
     amount_unit,
     extract_ratio,
@@ -25,17 +26,30 @@ export function formatMedicinalIngredient(pmi) {
   } = pmi;
 
   const qty = `${amount_value ?? ''} ${amount_unit ?? ''}`.trim();
+  const brandName = sku?.brand_name || null;
+  const skuForms = sku?.sku_forms || [];
 
   if (!ci) {
-    return { nameCol: source_material ?? 'Unknown ingredient', qtyCol: qty, line2: null };
+    return { nameCol: source_material ?? 'Unknown ingredient', qtyCol: qty, line2: null, brandName, skuForms };
   }
 
-  // "Scientific name (Common name)" — skip parenthetical if identical
   const sci = ci.scientific_name ?? '';
   const common = ci.name_en ?? '';
-  const name = (common && common.toLowerCase() !== sci.toLowerCase())
-    ? `${sci} (${common})`
-    : (sci || common);
+  const sortedForms = [...skuForms].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+  const formWithName = sortedForms.find(f => f.name_en);
+  let displayName;
+  if (formWithName) {
+    const formName = formWithName.name_en;
+    const formAmt = formWithName.amount && formWithName.unit ? ` ${formWithName.amount} ${formWithName.unit}` : '';
+    displayName = brandName ? `${brandName} ${formName}${formAmt}` : `${formName}${formAmt}`;
+  } else if (brandName) {
+    displayName = `${brandName} ${common || sci}`;
+  } else {
+    displayName = (common && common.toLowerCase() !== sci.toLowerCase())
+      ? `${sci} (${common})`
+      : (sci || common);
+  }
 
   const sourceSuffix = source_material ? ` (${source_material})` : '';
 
@@ -44,13 +58,25 @@ export function formatMedicinalIngredient(pmi) {
     const isSpecial = SPECIAL_PARTS.some(s => part.toLowerCase().includes(s));
     const qualifier = isSpecial ? '' : `${extract_type === 'Fresh' ? 'fresh' : 'dried'} `;
     return {
-      nameCol: `${name}${sourceSuffix} ${extract_ratio} extract`,
+      nameCol: `${displayName}${sourceSuffix} ${extract_ratio} extract`,
       qtyCol: qty,
       line2: `Equivalent to ${dried_herb_equivalent} ${dhe_unit} ${qualifier}${part}`,
+      brandName,
+      skuForms,
     };
   }
 
-  return { nameCol: `${name}${sourceSuffix}`, qtyCol: qty, line2: null };
+  const lines = [];
+  for (const f of sortedForms) {
+    if (f.note) lines.push(`(${f.note})`);
+    if (f.show_contains && f.contains_name_en) {
+      const cAmt = f.contains_amount && f.contains_unit ? ` ${f.contains_amount} ${f.contains_unit}` : '';
+      lines.push(`Contains ${f.contains_name_en}${cAmt}`);
+    }
+  }
+  const line2 = lines.length > 0 ? lines.join('\n') : null;
+
+  return { nameCol: `${displayName}${sourceSuffix}`, qtyCol: qty, line2, brandName, skuForms };
 }
 
 

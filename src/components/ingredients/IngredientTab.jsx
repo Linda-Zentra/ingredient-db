@@ -42,7 +42,8 @@ export default function IngredientTab() {
         supabase.from("skus").select(`
           *,
           suppliers(*),
-          sku_functions(category_id)
+          sku_functions(category_id),
+          sku_forms(*)
         `),
         supabase.from("function_categories").select("*"),
         supabase.from("ingredients").select("*"),
@@ -61,6 +62,7 @@ export default function IngredientTab() {
         is_account_opened: sku.suppliers?.is_account_opened || "",
         agreement_signed: sku.suppliers?.agreement_signed || "",
         category_ids: (sku.sku_functions || []).map(f => f.category_id),
+        forms: (sku.sku_forms || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
       })));
       setError(null);
     } catch (e) { setError(e.message); }
@@ -101,13 +103,27 @@ export default function IngredientTab() {
     });
   }, [filtered, sortCol, sortDir]);
 
-  const handleSave = async (skuId, formData, catIds) => {
+  const handleSave = async (skuId, formData, catIds, forms) => {
     const skuUpdate = {};
     SKU_FIELDS.forEach(({ key }) => { skuUpdate[key] = formData[key] || null; });
     skuUpdate.supplier_id = formData.supplier_id || null;
+    skuUpdate.brand_name = formData.brand_name || null;
     await supabase.from("skus").update(skuUpdate).eq("id", skuId);
     await supabase.from("sku_functions").delete().eq("sku_id", skuId);
     if (catIds.length > 0) await supabase.from("sku_functions").insert(catIds.map(cid => ({ sku_id: skuId, category_id: cid })));
+    if (forms !== undefined) {
+      await supabase.from("sku_forms").delete().eq("sku_id", skuId);
+      if (forms.length > 0) {
+        await supabase.from("sku_forms").insert(forms.map((f, i) => ({
+          sku_id: skuId, name_en: f.name_en, name_fr: f.name_fr || null,
+          amount: f.amount ? parseFloat(f.amount) : null, unit: f.unit || null,
+          note: f.note || null, show_contains: f.show_contains || false,
+          contains_name_en: f.contains_name_en || null, contains_name_fr: f.contains_name_fr || null,
+          contains_amount: f.contains_amount ? parseFloat(f.contains_amount) : null,
+          contains_unit: f.contains_unit || null, sort_order: i,
+        })));
+      }
+    }
     await loadData();
   };
 

@@ -476,12 +476,10 @@ async function importOne(npn: string, supabase: any) {
     // Risk: classify into buckets
     const riskFields = cleanRiskRows(riskEN ?? []);
 
-    // Legacy caution field (for backward compatibility with existing label display)
-    const caution = riskEN && riskEN.length > 0
-      ? riskEN.map((r: any) => `${r.risk_type_desc}: ${r.risk_text}`).join("\n\n")
-      : null;
+    // Step 4: upsert products (V2: includes fields formerly on product_labels)
+    const recommended_use = purposeEN?.[0]?.purpose ?? null;
+    const recommended_use_fr = purposeFR?.[0]?.purpose ?? null;
 
-    // Step 4: upsert products
     const { data: productData, error: productError } = await supabase
       .from("products")
       .upsert({
@@ -494,6 +492,15 @@ async function importOne(npn: string, supabase: any) {
         dosage_form_subtype: dosageFormParts[1] || null,
         date_of_licensing: primary.licence_date ?? null,
         licensing_status: "active",
+        recommended_use,
+        recommended_use_fr,
+        dose_population: doseData?.population_type_desc ?? null,
+        dose_min_age: doseData?.age_minimum ?? null,
+        // Structured risk buckets
+        ...riskFields,
+        // Structured purposes
+        purposes_en,
+        purposes_fr,
       }, { onConflict: "npn" })
       .select("id")
       .single();
@@ -542,38 +549,13 @@ async function importOne(npn: string, supabase: any) {
       }
     }
 
-    // Step 7: upsert product_labels with structured risk/purpose fields
-    const recommended_use = purposeEN?.[0]?.purpose ?? null;
-    const recommended_use_fr = purposeFR?.[0]?.purpose ?? null;
-    const nonMedFRText = nonMedFR?.map((f: any) => f.ingredient_name).join(", ") ?? null;
-
-    const labelPayload: Record<string, any> = {
-      recommended_use,
-      recommended_use_fr,
-      caution,
-      dose_population: doseData?.population_type_desc ?? null,
-      dose_min_age: doseData?.age_minimum ?? null,
-      non_medicinal_fr: nonMedFRText,
-      // Structured risk buckets
-      ...riskFields,
-      // Structured purposes
-      purposes_en,
-      purposes_fr,
-    };
-
-    const { data: existingLabel } = await supabase
-      .from("product_labels").select("id").eq("product_id", product_id)
-      .order("id", { ascending: true }).limit(1).maybeSingle();
-    if (existingLabel) {
-      await supabase.from("product_labels").update(labelPayload).eq("id", existingLabel.id);
-    } else {
-      await supabase.from("product_labels").insert({ product_id, ...labelPayload });
-    }
+    // Step 7: product_labels removed in V2 — fields now live on products table
+    // (already saved in step 4 upsert above)
 
     // Step 8: medicinal ingredients
     if (medicinalEN && medicinalEN.length > 0) {
       await supabase
-        .from("product_medicinal_ingredients")
+        .from("product_ingredients")
         .delete()
         .eq("product_id", product_id);
 
@@ -596,18 +578,18 @@ async function importOne(npn: string, supabase: any) {
           item.source_material ?? undefined,
         );
 
-        // Find or create common_ingredient
-        let commonId: number | null = null;
-        let commonRecord: any = null;
+        // Find or create ingredient (V2: was common_ingredients)
+        let ingredientId: number | null = null;
+        let ingredientRecord: any = null;
         const { data: existing } = await supabase
-          .from("common_ingredients")
+          .from("ingredients")
           .select("id, source_organisms, name_en, name_fr, scientific_name")
           .eq("scientific_name", item.ingredient_name)
           .maybeSingle();
 
         if (existing) {
-          commonId = existing.id;
-          commonRecord = existing;
+          ingredientId = existing.id;
+          ingredientRecord = existing;
           // Only update name_en/name_fr if no NHPID common name exists yet
           // (NHPID provides proper common names; LNHPD only has scientific names)
           const updatePayload: Record<string, unknown> = { allergen_types: ingAllergens };
@@ -618,12 +600,12 @@ async function importOne(npn: string, supabase: any) {
             updatePayload.name_fr = frItem.ingredient_name;
           }
           await supabase
-            .from("common_ingredients")
+            .from("ingredients")
             .update(updatePayload)
-            .eq("id", commonId);
+            .eq("id", ingredientId);
         } else {
-          const { data: newCommon } = await supabase
-            .from("common_ingredients")
+          const { data: newIngredient } = await supabase
+            .from("ingredients")
             .insert({
               scientific_name: item.ingredient_name,
               name_en: item.ingredient_name,
@@ -632,11 +614,11 @@ async function importOne(npn: string, supabase: any) {
             })
             .select("id, source_organisms")
             .single();
-          commonId = newCommon?.id ?? null;
-          commonRecord = newCommon;
+          ingredientId = newIngredient?.id ?? null;
+          ingredientRecord = newIngredient;
         }
 
-        if (commonId) {
+        if (ingredientId) {
           // Extract ratio
           const ratioNum = item.ratio_numerator ?? null;
           const ratioDen = item.ratio_denominator ?? null;
@@ -647,7 +629,7 @@ async function importOne(npn: string, supabase: any) {
           let resolvedSourcePart = item.source_material ? extractSourcePart(item.source_material) : null;
 
           // If NHPID source_organisms available, resolve full organism name
-          const sourceOrganisms = commonRecord?.source_organisms;
+          const sourceOrganisms = ingredientRecord?.source_organisms;
           if (sourceOrganisms && resolvedSourcePart) {
             const organisms = sourceOrganisms as Array<{organism: string, part: string}>;
             const match = organisms.find((o: any) =>
@@ -661,10 +643,10 @@ async function importOne(npn: string, supabase: any) {
           const rawExtractType = item.extract_type_desc ?? '';
 
           await supabase
-            .from("product_medicinal_ingredients")
+            .from("product_ingredients")
             .insert({
               product_id,
-              common_ingredient_id: commonId,
+              ingredient_id: ingredientId,
               amount_value: item.quantity ? parseFloat(item.quantity) : null,
               amount_unit: normalizeUnit(item.quantity_unit_of_measure),
               extract_ratio: extractRatio,
