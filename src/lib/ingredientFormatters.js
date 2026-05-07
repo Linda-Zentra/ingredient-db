@@ -35,11 +35,16 @@ export function formatMedicinalIngredient(pmi) {
 
   const sci = ci.scientific_name ?? '';
   const common = ci.name_en ?? '';
-  const name = (common && common.toLowerCase() !== sci.toLowerCase())
-    ? `${sci} (${common})`
-    : (sci || common);
 
-  const displayName = brandName ? `${brandName} ${name}` : name;
+  let displayName;
+  if (brandName) {
+    displayName = `${brandName} ${common || sci}`;
+  } else {
+    displayName = (common && common.toLowerCase() !== sci.toLowerCase())
+      ? `${sci} (${common})`
+      : (sci || common);
+  }
+
   const sourceSuffix = source_material ? ` (${source_material})` : '';
 
   if (extract_ratio && dried_herb_equivalent && dhe_unit) {
@@ -55,14 +60,14 @@ export function formatMedicinalIngredient(pmi) {
     };
   }
 
-  // Contains lines from sku_forms
-  const containsLines = skuForms
-    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    .map(f => {
-      const amt = f.amount && f.unit ? ` ${f.amount} ${f.unit}` : '';
-      return `Contains ${f.name_en}${amt}`;
-    });
-  const line2 = containsLines.length > 0 ? containsLines.join('\n') : null;
+  const sortedForms = [...skuForms].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const formLines = sortedForms.map(f => {
+    const prefix = f.show_contains !== false ? 'Contains ' : '';
+    const amt = f.amount && f.unit ? ` ${f.amount} ${f.unit}` : '';
+    const note = f.note ? ` (${f.note})` : '';
+    return `${prefix}${f.name_en}${amt}${note}`;
+  });
+  const line2 = formLines.length > 0 ? formLines.join('\n') : null;
 
   return { nameCol: `${displayName}${sourceSuffix}`, qtyCol: qty, line2, brandName, skuForms };
 }

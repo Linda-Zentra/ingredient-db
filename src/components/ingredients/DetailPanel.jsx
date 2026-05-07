@@ -39,7 +39,7 @@ export default function DetailPanel({ item, suppliers, categories, lang, ingredi
   };
   const toggleCat = (catId) => setSelCatIds(prev => prev.includes(catId) ? prev.filter(c => c !== catId) : [...prev, catId]);
 
-  const addForm = () => setForms(f => [...f, { id: `new-${Date.now()}`, name_en: "", name_fr: "", amount: "", unit: "" }]);
+  const addForm = () => setForms(f => [...f, { id: `new-${Date.now()}`, name_en: "", name_fr: "", amount: "", unit: "", note: "", show_contains: true }]);
   const removeForm = (i) => setForms(f => f.filter((_, idx) => idx !== i));
   const updateForm = (i, key, val) => setForms(f => f.map((item, idx) => idx === i ? { ...item, [key]: val } : item));
 
@@ -147,20 +147,27 @@ export default function DetailPanel({ item, suppliers, categories, lang, ingredi
             <div style={{ fontSize: 12, color: "#94a3b8" }}>无</div>
           )}
           {forms.map((f, i) => (
-            <div key={f.id || i} style={{ marginBottom: 8, padding: "8px 0", borderBottom: i < forms.length - 1 ? "1px solid #e2e8f0" : "none" }}>
+            <div key={f.id || i} style={{ marginBottom: 10, padding: "8px 0", borderBottom: i < forms.length - 1 ? "1px solid #e2e8f0" : "none" }}>
               {editing ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ display: "flex", gap: 4 }}>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#6366f1", cursor: "pointer", flexShrink: 0 }}>
+                      <input type="checkbox" checked={f.show_contains !== false} onChange={e => updateForm(i, "show_contains", e.target.checked)}
+                        style={{ accentColor: "#6366f1" }} />
+                      Contains
+                    </label>
                     <input value={f.name_en} onChange={e => updateForm(i, "name_en", e.target.value)}
-                      placeholder="Name EN" style={{ ...mini, flex: 2 }} />
+                      placeholder="Name EN" style={{ ...mini, flex: 1 }} />
                     <input value={f.name_fr || ""} onChange={e => updateForm(i, "name_fr", e.target.value)}
-                      placeholder="Name FR" style={{ ...mini, flex: 2 }} />
+                      placeholder="Name FR" style={{ ...mini, flex: 1 }} />
                   </div>
                   <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                     <input value={f.amount || ""} onChange={e => updateForm(i, "amount", e.target.value)}
                       placeholder="含量" type="number" style={{ ...mini, flex: 1 }} />
                     <input value={f.unit || ""} onChange={e => updateForm(i, "unit", e.target.value)}
                       placeholder="单位" style={{ ...mini, width: 60 }} />
+                    <input value={f.note || ""} onChange={e => updateForm(i, "note", e.target.value)}
+                      placeholder="备注 (括号显示)" style={{ ...mini, flex: 2 }} />
                     <button onClick={() => removeForm(i)}
                       style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", fontSize: 16 }}
                       onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
@@ -169,9 +176,11 @@ export default function DetailPanel({ item, suppliers, categories, lang, ingredi
                 </div>
               ) : (
                 <div style={{ fontSize: 12, color: "#334155" }}>
+                  {f.show_contains !== false && <span style={{ color: "#6366f1", fontSize: 10, marginRight: 4 }}>Contains</span>}
                   <span>{f.name_en}</span>
                   {f.name_fr && <span style={{ color: "#94a3b8" }}> / {f.name_fr}</span>}
-                  {f.amount && <span style={{ marginLeft: 8, color: "#6366f1", fontWeight: 500 }}>{f.amount} {f.unit || ""}</span>}
+                  {f.amount && <span style={{ marginLeft: 6, color: "#6366f1", fontWeight: 500 }}>{f.amount} {f.unit || ""}</span>}
+                  {f.note && <span style={{ marginLeft: 6, color: "#94a3b8" }}>({f.note})</span>}
                 </div>
               )}
             </div>
