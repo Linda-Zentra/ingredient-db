@@ -35,9 +35,15 @@ export function formatMedicinalIngredient(pmi) {
 
   const sci = ci.scientific_name ?? '';
   const common = ci.name_en ?? '';
+  const sortedForms = [...skuForms].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
+  const formWithName = sortedForms.find(f => f.name_en);
   let displayName;
-  if (brandName) {
+  if (formWithName) {
+    const formName = formWithName.name_en;
+    const formAmt = formWithName.amount && formWithName.unit ? ` ${formWithName.amount} ${formWithName.unit}` : '';
+    displayName = brandName ? `${brandName} ${formName}${formAmt}` : `${formName}${formAmt}`;
+  } else if (brandName) {
     displayName = `${brandName} ${common || sci}`;
   } else {
     displayName = (common && common.toLowerCase() !== sci.toLowerCase())
@@ -60,11 +66,8 @@ export function formatMedicinalIngredient(pmi) {
     };
   }
 
-  const sortedForms = [...skuForms].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   const lines = [];
   for (const f of sortedForms) {
-    const mainAmt = f.amount && f.unit ? ` ${f.amount} ${f.unit}` : '';
-    if (f.name_en) lines.push(`${f.name_en}${mainAmt}`);
     if (f.note) lines.push(`(${f.note})`);
     if (f.show_contains && f.contains_name_en) {
       const cAmt = f.contains_amount && f.contains_unit ? ` ${f.contains_amount} ${f.contains_unit}` : '';

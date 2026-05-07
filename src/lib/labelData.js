@@ -111,14 +111,20 @@ export function getVal(sec, label, products, excipientMap) {
             const ci = pmi.ingredients;
             const sku = pmi.skus;
             const brandName = sku?.brand_name || '';
-            const name = ci?.name_fr || ci?.name_en || ci?.scientific_name || '';
-            const displayName = brandName ? `${brandName} ${name}` : name;
+            const skuForms = [...(sku?.sku_forms || [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+            const formWithName = skuForms.find(f => f.name_fr || f.name_en);
+            let displayName;
+            if (formWithName) {
+              const fn = formWithName.name_fr || formWithName.name_en;
+              const fAmt = formWithName.amount && formWithName.unit ? ` ${formWithName.amount} ${formWithName.unit}` : '';
+              displayName = brandName ? `${brandName} ${fn}${fAmt}` : `${fn}${fAmt}`;
+            } else {
+              const name = ci?.name_fr || ci?.name_en || ci?.scientific_name || '';
+              displayName = brandName ? `${brandName} ${name}` : name;
+            }
             const qty = pmi.amount_value && pmi.amount_unit ? `${pmi.amount_value} ${pmi.amount_unit}` : '';
-            const parts = [displayName, qty].filter(Boolean).join("  ");
-            const skuForms = sku?.sku_forms || [];
-            const lines = [parts];
-            for (const f of [...skuForms].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))) {
-              if (f.name_fr || f.name_en) lines.push(`  ${f.name_fr || f.name_en}${f.amount && f.unit ? ` ${f.amount} ${f.unit}` : ''}`);
+            const lines = [[displayName, qty].filter(Boolean).join("  ")];
+            for (const f of skuForms) {
               if (f.note) lines.push(`  (${f.note})`);
               if (f.show_contains && (f.contains_name_fr || f.contains_name_en)) {
                 const cAmt = f.contains_amount && f.contains_unit ? ` ${f.contains_amount} ${f.contains_unit}` : '';
