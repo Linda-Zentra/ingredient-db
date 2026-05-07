@@ -21,6 +21,7 @@ export default function LabelTab() {
   const [form, setForm] = useState({});
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [createSearch, setCreateSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
 
@@ -82,6 +83,7 @@ export default function LabelTab() {
     setSelected(newLabel);
     setEditing(true);
     setShowCreate(false);
+    setCreateSearch("");
   };
 
   const handleSave = async () => {
@@ -254,14 +256,20 @@ export default function LabelTab() {
         <>
           <div onClick={() => setShowCreate(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.2)", zIndex: 999 }} />
           <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "#fff", borderRadius: 12, width: 480, maxHeight: "70vh", overflowY: "auto", zIndex: 1000, boxShadow: "0 20px 60px rgba(0,0,0,0.15)", padding: "24px 28px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f172a" }}>选择产品创建标签</h3>
               <button onClick={() => setShowCreate(false)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8" }}>×</button>
             </div>
+            <input value={createSearch} onChange={e => setCreateSearch(e.target.value)} placeholder="搜索产品名称、NPN..."
+              style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 6, boxSizing: "border-box", outline: "none", marginBottom: 12 }} />
             {products.length === 0 ? (
               <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 12 }}>暂无产品，请先在「产品管理」添加</div>
             ) : (
-              products.map(p => {
+              products.filter(p => {
+                if (!createSearch.trim()) return true;
+                const q = createSearch.toLowerCase();
+                return [getProdDisplayName(p), p.npn, p.product_name_zh, p.product_name].filter(Boolean).join(" ").toLowerCase().includes(q);
+              }).map(p => {
                 const hasLabel = labels.some(l => l.product_id === p.id);
                 return (
                   <div key={p.id} onClick={() => handleCreate(p.id)}
