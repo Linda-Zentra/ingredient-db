@@ -52,7 +52,7 @@ export default function LabelPreviewV2({ label, product, productName, excipients
           {spec && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{spec}</div>}
         </div>
         <div style={h}>{fr ? "UTILISATION RECOMMANDÉE" : "RECOMMENDED USE"}</div>
-        <div style={b}>{fr ? (p.recommended_use_fr || s.recommended_use_fr) : (p.recommended_use) || "—"}</div>
+        <div style={b}>{fr ? (p.recommended_use_fr || "—") : (p.recommended_use || "—")}</div>
         <div style={h}>{fr ? "DOSE RECOMMANDÉE (ADULTES)" : "RECOMMENDED DOSE (ADULTS)"}</div>
         <div style={b}>{fr ? s.recommended_dose_fr : (recommendedDose || "—")}</div>
         <div style={h}>{fr ? "MISES EN GARDE ET PRÉCAUTIONS" : "CAUTIONS AND WARNINGS"}</div>
@@ -149,9 +149,8 @@ export default function LabelPreviewV2({ label, product, productName, excipients
             {p.keep_out_overdose_en && (
               <div style={{ marginBottom: 6 }}>{p.keep_out_overdose_en}</div>
             )}
-            {/* Fallback to legacy caution + risk_info on label */}
             {!(p.do_not_use_en?.length || p.ask_before_use_en?.length || p.when_using_en?.length || p.stop_use_en?.length || p.known_adverse_en?.length || p.other_warnings_en?.length || p.keep_out_overdose_en) && (
-              <span>{[s.caution, s.risk_info].filter(Boolean).join("\n") || "\u2014"}</span>
+              <span>{s.risk_info || DEFAULT_RISK}</span>
             )}
           </div>
           <div style={divider} />
