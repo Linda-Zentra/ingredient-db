@@ -53,7 +53,7 @@ function WarningBucket({ label, labelFr, items, itemsFr, onChange, onChangeFr, e
   );
 }
 
-export default function LabelForm({ selected, product, form, editing, getVal, onFormChange }) {
+export default function LabelForm({ selected, product, form, editing, getVal, onFormChange, excipientsFr }) {
   const p = product || {};
   const bilingual = form.label_type !== "us_fda";
 
@@ -114,9 +114,16 @@ export default function LabelForm({ selected, product, form, editing, getVal, on
             )}
           </>
         ) : (
-          <div style={{ fontSize: 13, color: "#1e293b", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-            {(p.purposes_en || []).join("\n") || p.recommended_use || "—"}
-          </div>
+          <>
+            <div style={{ fontSize: 13, color: "#1e293b", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+              {(p.purposes_en || []).join("\n") || p.recommended_use || "—"}
+            </div>
+            {bilingual && (p.purposes_fr?.length > 0 || p.recommended_use_fr) && (
+              <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, whiteSpace: "pre-wrap", marginTop: 6, paddingTop: 6, borderTop: "1px dashed #e2e8f0" }}>
+                {(p.purposes_fr || []).join("\n") || p.recommended_use_fr}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -127,6 +134,11 @@ export default function LabelForm({ selected, product, form, editing, getVal, on
           <span style={{ color: "#86efac", fontSize: 10 }}>自动计算</span>
         </div>
         <div style={{ fontSize: 13, color: "#1e293b" }}>{getVal({ key: "recommended_dose", source: "computed" }, selected) || "—"}</div>
+        {bilingual && (
+          <div style={{ fontSize: 12, color: "#64748b", marginTop: 6, paddingTop: 6, borderTop: "1px dashed #e2e8f0" }}>
+            {getVal({ key: "recommended_dose_fr", source: "computed" }, selected) || "—"}
+          </div>
+        )}
       </div>
 
       {/* Structured Warnings */}
@@ -178,7 +190,23 @@ export default function LabelForm({ selected, product, form, editing, getVal, on
         <div style={{ fontSize: 12, color: "#1e293b", whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
           {getVal({ key: "medicinal_en", source: "computed" }, selected) || "—"}
         </div>
+        {bilingual && (
+          <div style={{ fontSize: 12, color: "#64748b", whiteSpace: "pre-wrap", fontFamily: "monospace", marginTop: 6, paddingTop: 6, borderTop: "1px dashed #e2e8f0" }}>
+            {getVal({ key: "medicinal_fr", source: "computed" }, selected) || "—"}
+          </div>
+        )}
       </div>
+
+      {/* Authorization Claims (from SKU) */}
+      {(() => {
+        const claims = getVal({ key: "authorization_claims", source: "computed" }, selected);
+        return claims ? (
+          <div style={{ ...sectionBox, background: "#fefce8", border: "1px solid #fef08a" }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#a16207", marginBottom: 6 }}>Authorization Claims</div>
+            <div style={{ fontSize: 12, color: "#78350f", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{claims}</div>
+          </div>
+        ) : null;
+      })()}
 
       {/* Non-Medicinal (computed) */}
       <div style={{ ...sectionBox, background: "#f0fdf4" }}>
@@ -189,6 +217,11 @@ export default function LabelForm({ selected, product, form, editing, getVal, on
         <div style={{ fontSize: 12, color: "#1e293b" }}>
           {getVal({ key: "non_medicinal", source: "computed" }, selected) || "—"}
         </div>
+        {bilingual && excipientsFr && (
+          <div style={{ fontSize: 12, color: "#64748b", marginTop: 6, paddingTop: 6, borderTop: "1px dashed #e2e8f0" }}>
+            {excipientsFr}
+          </div>
+        )}
       </div>
 
       {/* Risk Info & Company (label-level overrides) */}

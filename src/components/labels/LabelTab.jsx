@@ -247,6 +247,7 @@ export default function LabelTab() {
               editing={editing}
               getVal={boundGetVal}
               onFormChange={setForm}
+              excipientsFr={excipientMapFr[selected?.product_id] || ""}
             />
           </div>
         )}
