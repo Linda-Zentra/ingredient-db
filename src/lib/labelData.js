@@ -1,4 +1,4 @@
-import { sortMedicinalIngredients } from "./ingredientFormatters";
+import { sortMedicinalIngredients, formatMedicinalIngredient } from "./ingredientFormatters";
 
 export function getProduct(products, label) {
   return products.find(p => p.id === label?.product_id);
@@ -94,24 +94,39 @@ export function getVal(sec, label, products, excipientMap) {
 
       case "medicinal_en": {
         const ingredients = prod?.product_ingredients || [];
-        const fmtAmount = (pmi) => {
-          const a1 = pmi.amount_value && pmi.amount_unit ? `${pmi.amount_value} ${pmi.amount_unit}` : null;
-          return a1 || "";
-        };
         return sortMedicinalIngredients(ingredients)
-          .map(pmi => [pmi.ingredients?.name_en || pmi.ingredients?.scientific_name, fmtAmount(pmi)].filter(Boolean).join("  "))
+          .map(pmi => {
+            const fmt = formatMedicinalIngredient(pmi);
+            const parts = [fmt.nameCol, fmt.qtyCol].filter(Boolean).join("  ");
+            return fmt.line2 ? `${parts}\n  ${fmt.line2}` : parts;
+          })
           .filter(Boolean)
           .join("\n") || "";
       }
 
       case "medicinal_fr": {
         const ingredients = prod?.product_ingredients || [];
-        const fmtAmount = (pmi) => {
-          const a1 = pmi.amount_value && pmi.amount_unit ? `${pmi.amount_value} ${pmi.amount_unit}` : null;
-          return a1 || "";
-        };
         return sortMedicinalIngredients(ingredients)
-          .map(pmi => [pmi.ingredients?.name_fr || pmi.ingredients?.name_en, fmtAmount(pmi)].filter(Boolean).join("  "))
+          .map(pmi => {
+            const ci = pmi.ingredients;
+            const sku = pmi.skus;
+            const brandName = sku?.brand_name || '';
+            const name = ci?.name_fr || ci?.name_en || ci?.scientific_name || '';
+            const displayName = brandName ? `${brandName} ${name}` : name;
+            const qty = pmi.amount_value && pmi.amount_unit ? `${pmi.amount_value} ${pmi.amount_unit}` : '';
+            const parts = [displayName, qty].filter(Boolean).join("  ");
+            const skuForms = sku?.sku_forms || [];
+            const lines = [parts];
+            for (const f of [...skuForms].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))) {
+              if (f.name_fr || f.name_en) lines.push(`  ${f.name_fr || f.name_en}${f.amount && f.unit ? ` ${f.amount} ${f.unit}` : ''}`);
+              if (f.note) lines.push(`  (${f.note})`);
+              if (f.show_contains && (f.contains_name_fr || f.contains_name_en)) {
+                const cAmt = f.contains_amount && f.contains_unit ? ` ${f.contains_amount} ${f.contains_unit}` : '';
+                lines.push(`  Contient ${f.contains_name_fr || f.contains_name_en}${cAmt}`);
+              }
+            }
+            return lines.join("\n");
+          })
           .filter(Boolean)
           .join("\n") || "";
       }
