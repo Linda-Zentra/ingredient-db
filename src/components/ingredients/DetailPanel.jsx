@@ -2,11 +2,15 @@ import { useState, useEffect } from "react";
 import { SKU_FIELDS } from "../../constants";
 import Badge from "../ui/Badge";
 import SkuCommonNameEditor from "./SkuCommonNameEditor";
+import supabase from "../../lib/supabase";
+
+const mini = { padding: "4px 7px", fontSize: 11, border: "1px solid #e2e8f0", borderRadius: 6, outline: "none", color: "#334155", boxSizing: "border-box" };
 
 export default function DetailPanel({ item, suppliers, categories, lang, ingredientsList = [], onClose, onSave, onDelete, onRefresh }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
   const [selCatIds, setSelCatIds] = useState([]);
+  const [forms, setForms] = useState([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -14,8 +18,10 @@ export default function DetailPanel({ item, suppliers, categories, lang, ingredi
       const f = {};
       SKU_FIELDS.forEach(({ key }) => { f[key] = item[key] || ""; });
       f.supplier_id = item.supplier_id || "";
+      f.brand_name = item.brand_name || "";
       setForm(f);
       setSelCatIds(item.category_ids || []);
+      setForms(item.forms || []);
       setEditing(false);
     }
   }, [item]);
@@ -27,11 +33,15 @@ export default function DetailPanel({ item, suppliers, categories, lang, ingredi
   const getCatSub = (cat) => lang === "zh" ? cat.name_en : (lang === "en" ? cat.name_zh : null);
   const handleSave = async () => {
     setSaving(true);
-    try { await onSave(item.id, form, selCatIds); setEditing(false); }
+    try { await onSave(item.id, form, selCatIds, forms); setEditing(false); }
     catch (e) { alert("保存失败: " + e.message); }
     setSaving(false);
   };
   const toggleCat = (catId) => setSelCatIds(prev => prev.includes(catId) ? prev.filter(c => c !== catId) : [...prev, catId]);
+
+  const addForm = () => setForms(f => [...f, { id: `new-${Date.now()}`, name_en: "", name_fr: "", amount: "", unit: "" }]);
+  const removeForm = (i) => setForms(f => f.filter((_, idx) => idx !== i));
+  const updateForm = (i, key, val) => setForms(f => f.map((item, idx) => idx === i ? { ...item, [key]: val } : item));
 
   return (
     <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 520, background: "#fff", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)", zIndex: 1000, overflowY: "auto", borderLeft: "1px solid #e2e8f0" }}>
@@ -39,10 +49,13 @@ export default function DetailPanel({ item, suppliers, categories, lang, ingredi
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{supplier?.supplier_name || "未知供应商"}</div>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#0f172a" }}>{item.product_name || item.ingredient || "—"}</h2>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#0f172a" }}>
+              {item.brand_name && <span style={{ color: "#6366f1" }}>{item.brand_name} </span>}
+              {item.product_name || item.ingredient || "—"}
+            </h2>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            {!editing && <button onClick={() => setEditing(true)} style={{ background: "none", border: "1px solid #e2e8f0", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: "#475569" }}>✏️ 编辑</button>}
+            {!editing && <button onClick={() => setEditing(true)} style={{ background: "none", border: "1px solid #e2e8f0", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: "#475569" }}>编辑</button>}
             <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8", padding: "4px 8px" }}>×</button>
           </div>
         </div>
@@ -105,6 +118,12 @@ export default function DetailPanel({ item, suppliers, categories, lang, ingredi
                 />
               </div>
             </div>
+            <div style={{ display: "flex", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
+              <div style={{ width: 130, flexShrink: 0, fontSize: 13, color: "#6366f1", fontWeight: 500, paddingTop: 8 }}>品牌名</div>
+              <input value={form.brand_name} onChange={e => setForm({ ...form, brand_name: e.target.value })}
+                placeholder="e.g. Quali-B®, Quatrefolic®"
+                style={{ flex: 1, padding: "8px 10px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 6 }} />
+            </div>
           </>
         )}
 
@@ -118,6 +137,52 @@ export default function DetailPanel({ item, suppliers, categories, lang, ingredi
               : <div style={{ fontSize: 13, color: "#1e293b", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{item[key] || "—"}</div>}
           </div>
         ))}
+
+        {/* SKU Forms (Contains / chemical forms) */}
+        <div style={{ marginTop: 16, padding: 12, background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: 11, color: "#6366f1", fontWeight: 600, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Contains / 化学形式
+          </div>
+          {forms.length === 0 && !editing && (
+            <div style={{ fontSize: 12, color: "#94a3b8" }}>无</div>
+          )}
+          {forms.map((f, i) => (
+            <div key={f.id || i} style={{ marginBottom: 8, padding: "8px 0", borderBottom: i < forms.length - 1 ? "1px solid #e2e8f0" : "none" }}>
+              {editing ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <input value={f.name_en} onChange={e => updateForm(i, "name_en", e.target.value)}
+                      placeholder="Name EN" style={{ ...mini, flex: 2 }} />
+                    <input value={f.name_fr || ""} onChange={e => updateForm(i, "name_fr", e.target.value)}
+                      placeholder="Name FR" style={{ ...mini, flex: 2 }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <input value={f.amount || ""} onChange={e => updateForm(i, "amount", e.target.value)}
+                      placeholder="含量" type="number" style={{ ...mini, flex: 1 }} />
+                    <input value={f.unit || ""} onChange={e => updateForm(i, "unit", e.target.value)}
+                      placeholder="单位" style={{ ...mini, width: 60 }} />
+                    <button onClick={() => removeForm(i)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", fontSize: 16 }}
+                      onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+                      onMouseLeave={e => e.currentTarget.style.color = "#cbd5e1"}>×</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "#334155" }}>
+                  <span>{f.name_en}</span>
+                  {f.name_fr && <span style={{ color: "#94a3b8" }}> / {f.name_fr}</span>}
+                  {f.amount && <span style={{ marginLeft: 8, color: "#6366f1", fontWeight: 500 }}>{f.amount} {f.unit || ""}</span>}
+                </div>
+              )}
+            </div>
+          ))}
+          {editing && (
+            <button onClick={addForm}
+              style={{ fontSize: 11, color: "#6366f1", background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
+              + 添加化学形式
+            </button>
+          )}
+        </div>
 
         {editing && (
           <div style={{ display: "flex", gap: 10, marginTop: 20 }}>

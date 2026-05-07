@@ -47,7 +47,7 @@ export default function LabelTab() {
           *,
           product_brands(*),
           product_excipients(*, excipients(name, name_fr, allergen_types)),
-          product_ingredients(*, ingredients(scientific_name, name_en, name_fr, allergen_types), skus(authorization_claims))
+          product_ingredients(*, ingredients(scientific_name, name_en, name_fr, allergen_types), skus(brand_name, authorization_claims, sku_forms(*)))
         `),
       ]);
       if (e1 || e2) throw new Error((e1 || e2).message);

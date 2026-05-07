@@ -14,6 +14,7 @@ const SPECIAL_PARTS = ['resin', 'oil', 'juice'];
 export function formatMedicinalIngredient(pmi) {
   const {
     ingredients: ci,
+    skus: sku,
     amount_value,
     amount_unit,
     extract_ratio,
@@ -25,18 +26,20 @@ export function formatMedicinalIngredient(pmi) {
   } = pmi;
 
   const qty = `${amount_value ?? ''} ${amount_unit ?? ''}`.trim();
+  const brandName = sku?.brand_name || null;
+  const skuForms = sku?.sku_forms || [];
 
   if (!ci) {
-    return { nameCol: source_material ?? 'Unknown ingredient', qtyCol: qty, line2: null };
+    return { nameCol: source_material ?? 'Unknown ingredient', qtyCol: qty, line2: null, brandName, skuForms };
   }
 
-  // "Scientific name (Common name)" — skip parenthetical if identical
   const sci = ci.scientific_name ?? '';
   const common = ci.name_en ?? '';
   const name = (common && common.toLowerCase() !== sci.toLowerCase())
     ? `${sci} (${common})`
     : (sci || common);
 
+  const displayName = brandName ? `${brandName} ${name}` : name;
   const sourceSuffix = source_material ? ` (${source_material})` : '';
 
   if (extract_ratio && dried_herb_equivalent && dhe_unit) {
@@ -44,13 +47,24 @@ export function formatMedicinalIngredient(pmi) {
     const isSpecial = SPECIAL_PARTS.some(s => part.toLowerCase().includes(s));
     const qualifier = isSpecial ? '' : `${extract_type === 'Fresh' ? 'fresh' : 'dried'} `;
     return {
-      nameCol: `${name}${sourceSuffix} ${extract_ratio} extract`,
+      nameCol: `${displayName}${sourceSuffix} ${extract_ratio} extract`,
       qtyCol: qty,
       line2: `Equivalent to ${dried_herb_equivalent} ${dhe_unit} ${qualifier}${part}`,
+      brandName,
+      skuForms,
     };
   }
 
-  return { nameCol: `${name}${sourceSuffix}`, qtyCol: qty, line2: null };
+  // Contains lines from sku_forms
+  const containsLines = skuForms
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map(f => {
+      const amt = f.amount && f.unit ? ` ${f.amount} ${f.unit}` : '';
+      return `Contains ${f.name_en}${amt}`;
+    });
+  const line2 = containsLines.length > 0 ? containsLines.join('\n') : null;
+
+  return { nameCol: `${displayName}${sourceSuffix}`, qtyCol: qty, line2, brandName, skuForms };
 }
 
 
