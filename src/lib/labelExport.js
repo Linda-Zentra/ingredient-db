@@ -1,5 +1,7 @@
 import { SECTION_DEFS, DEFAULT_STORAGE_US, DEFAULT_RISK, DEFAULT_RISK_FR } from "../constants";
 import { getVal, getProduct, getProdDisplayName, buildCautionText } from "./labelData";
+import { calcDV } from "./fdaDV";
+import { sortMedicinalIngredients, formatMedicinalIngredient, collectAllergens, formatAllergenStatement, formatExcipientWithAllergen } from "./ingredientFormatters";
 
 const FREQ_UNIT_FR = {
   daily: "par jour", "per day": "par jour", "per week": "par semaine",
@@ -44,17 +46,57 @@ export function buildExportText(label, products, excipientMap, excipientMapFr) {
   t += "\n";
 
   if (isFDA) {
-    t += `HEALTH CLAIMS:\n${prod.recommended_use || ""}\n`;
+    // Front panel
+    t += `DIETARY SUPPLEMENT\n`;
+    if (prod.total_count && prod.dosage_form_type) {
+      t += `${prod.total_count} ${prod.dosage_form_type}${prod.total_count > 1 ? "s" : ""}\n`;
+    }
+    const purposes = prod.purposes_en?.length ? prod.purposes_en.join("\n") : (prod.recommended_use || "");
+    if (purposes) t += `\nHEALTH CLAIMS:\n${purposes}\n`;
+
+    // Left panel
     t += `\nSUGGESTED DOSE (ADULTS):\n${v("recommended_dose")}\n`;
     t += `\nCAUTIONS:\n${[buildCautionText(prod, "en"), s.risk_info || DEFAULT_RISK].filter(Boolean).join("\n")}\n`;
     t += `\nSTORAGE:\n${DEFAULT_STORAGE_US}\n`;
+
+    // Right panel — Supplement Facts
+    const servingSize = prod.dose_amount && prod.dosage_form_type
+      ? `${prod.dose_amount} ${prod.dosage_form_type}${prod.dose_amount > 1 ? "s" : ""}`
+      : "1 Capsule";
     t += `\nSupplement Facts\n`;
-    t += `Serving Size: ${prod.dose_amount && prod.dosage_form_type ? `${prod.dose_amount} ${prod.dosage_form_type}` : "1 Capsule"}\n`;
-    t += `\nMedicinal Ingredients (Amount Per Serving / %DV):\n${v("medicinal_en")}\n`;
-    t += `† Daily Value not Established.\n`;
-    t += `\nOther Ingredients:\n${excipientMap[s.product_id] || ""}\n`;
+    t += `Serving Size: ${servingSize}\n`;
+    t += `Servings Per Container: ${prod.total_count || "—"}\n`;
+    t += `\n                         Amount Per Serving    % Daily Value\n`;
+    const ingredients = sortMedicinalIngredients(prod.product_ingredients || []);
+    const ingredientData = ingredients.map(pmi => {
+      const fmt = formatMedicinalIngredient(pmi);
+      const dvPct = pmi.amount_value && pmi.amount_unit
+        ? calcDV(fmt.nameCol, pmi.amount_value, pmi.amount_unit)
+        : null;
+      return { fmt, dvPct };
+    });
+    const hasDagger = ingredientData.some(d => d.dvPct === null);
+    for (const { fmt, dvPct } of ingredientData) {
+      const dvStr = dvPct !== null ? `${dvPct}%` : "†";
+      t += `${fmt.nameCol}    ${fmt.qtyCol}    ${dvStr}\n`;
+      if (fmt.line2) t += `  ${fmt.line2}\n`;
+    }
+    if (hasDagger) t += `\n† Daily Value not Established.\n`;
+
+    // Other Ingredients + FALCPA allergen statement
+    const excipientRows = prod.product_excipients || [];
+    const otherIngredients = excipientRows.length
+      ? excipientRows.map(pe => formatExcipientWithAllergen(pe)).filter(Boolean).join(", ")
+      : excipientMap[s.product_id] || "";
+    if (otherIngredients) t += `\nOther Ingredients: ${otherIngredients}\n`;
+    const allAllergens = collectAllergens(ingredients, excipientRows);
+    const allergenStmt = formatAllergenStatement(allAllergens, "fda");
+    if (allergenStmt) t += `${allergenStmt}\n`;
+
+    // FDA disclaimer
     t += `\n*These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease.\n`;
-    t += `\nDistributor:\n${s.company_info || ""}\n`;
+    if (s.company_info) t += `\nDistributor:\n${s.company_info}\n`;
+    if (s.side_bar) t += `\n---\nFRONT PANEL CLAIMS:\n${s.side_bar}\n`;
   } else {
     t += `RECOMMENDED USE:\n${prod.recommended_use || ""}\n`;
     if (includeFr) t += `\nUTILISATION RECOMMANDÉE:\n${prod.recommended_use_fr || ""}\n`;
