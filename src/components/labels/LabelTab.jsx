@@ -48,7 +48,7 @@ export default function LabelTab() {
           *,
           product_brands(*),
           product_excipients(*, excipients(name, name_fr, allergen_types)),
-          product_ingredients(*, ingredients(scientific_name, name_en, name_fr, allergen_types), skus(brand_name, authorization_claims, sku_forms(*)))
+          product_ingredients(*, ingredients(scientific_name, name_en, name_fr, common_names_en, common_names_fr, allergen_types), skus(brand_name, authorization_claims, sku_forms(*)))
         `),
       ]);
       if (e1 || e2) throw new Error((e1 || e2).message);
@@ -145,7 +145,6 @@ export default function LabelTab() {
 
   const handleExport = () => {
     if (!selected) return;
-    const prod = getProduct(products, selected);
     downloadLabelText(selected, products, excipientMap, excipientMapFr);
   };
 
@@ -156,16 +155,21 @@ export default function LabelTab() {
     if (!confirm(`确定从 Health Canada 重新导入 NPN ${npnStr} 的数据？`)) return;
     setSaving(true);
     try {
-      const { error } = await supabase.functions.invoke("import-npn", {
+      const { data, error } = await supabase.functions.invoke("import-npn", {
         body: { npns: [npnStr] },
       });
       if (error) throw error;
+      const result = data?.results?.[0];
+      if (!result?.success) {
+        throw new Error(result?.error || "Health Canada 刷新未返回成功结果");
+      }
       await loadData();
       alert("刷新成功！数据已从 Health Canada 更新。");
     } catch (e) {
       alert("刷新失败: " + (e.message || e));
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleSelect = (l) => { setSelected(l); setEditing(false); setPreviewMode(false); };
@@ -207,6 +211,7 @@ export default function LabelTab() {
               product={selProd}
               productName={getProdDisplayName(selProd)}
               excipients={excipientMap[selected.product_id] || ""}
+              excipientsFr={excipientMapFr[selected.product_id] || ""}
               excipientRows={excipientRowsMap[selected.product_id] || []}
               ingredients={sortMedicinalIngredients(selProd?.product_ingredients || [])}
               medicinalEn={boundGetVal(SECTION_DEFS.find(d => d.key === "medicinal_en"), selected)}

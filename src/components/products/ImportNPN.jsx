@@ -1,7 +1,5 @@
 import { useState } from "react";
-
-const FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-npn`;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+import supabase from "../../lib/supabase";
 
 export default function ImportNPN({ onSuccess, onClose }) {
   const [npn, setNpn] = useState("");
@@ -14,16 +12,14 @@ export default function ImportNPN({ onSuccess, onClose }) {
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch(FUNCTION_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${ANON_KEY}`,
-        },
-        body: JSON.stringify({ npns: [cleaned] }),
+      const { data, error } = await supabase.functions.invoke("import-npn", {
+        body: { npns: [cleaned] },
       });
-      const json = await res.json();
-      const r = json.results?.[0];
+      if (error) throw error;
+      const r = data?.results?.[0] ?? {
+        success: false,
+        error: "导入函数未返回产品结果",
+      };
       setResult(r);
       if (r?.success) onSuccess?.();
     } catch (e) {

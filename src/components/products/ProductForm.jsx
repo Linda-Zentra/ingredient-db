@@ -34,6 +34,7 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
     price_cad:           product?.price_cad           ?? "",
     price_usd:           product?.price_usd           ?? "",
     notes:               product?.notes               || "",
+    brand_lines:         product?.brand_lines         || [],
   });
 
   const [defaultBrandId, setDefaultBrandId] = useState(initialDefaultBrandId);
@@ -90,8 +91,9 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
     setMedicinal(m => [...m, {
       id: `new-${Date.now()}`, ingredient_name: newCommon.trim(), isNew: true,
       amount_value: "", amount_unit: "", sku_id: null, name_en: "", name_fr: "",
-      extract_ratio: "", extract_type: "", dried_herb_equivalent: "", dhe_unit: "",
-      potency_amount: "", potency_label: "", source_material: "", source_part: "", sort_order: 0,
+      extract_ratio: "", extract_type: "", extract_type_fr: "", dried_herb_equivalent: "", dhe_unit: "",
+      potency_amount: "", potency_label: "", source_material: "", source_part: "",
+      source_material_fr: "", source_part_fr: "", sort_order: 0,
     }]);
     setNewCommon("");
   };
@@ -213,9 +215,20 @@ export default function ProductForm({ product, skus, allExcipients, onSave, onDe
               </select>
             </Field>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <input type="checkbox" id="is_marketed" checked={form.is_marketed} onChange={e => f("is_marketed", e.target.checked)} />
             <label htmlFor="is_marketed" style={{ fontSize: 13, color: "#475569", cursor: "pointer", whiteSpace: "nowrap" }}>已上市</label>
+            <span style={{ width: 1, height: 14, background: "#e2e8f0", margin: "0 6px" }} />
+            {["Zentra", "Zensta"].map(line => {
+              const checked = form.brand_lines.includes(line);
+              return (
+                <label key={line} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "#475569", cursor: "pointer" }}>
+                  <input type="checkbox" checked={checked}
+                    onChange={() => f("brand_lines", checked ? form.brand_lines.filter(l => l !== line) : [...form.brand_lines, line])} />
+                  {line}
+                </label>
+              );
+            })}
           </div>
         </div>
 

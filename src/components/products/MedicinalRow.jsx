@@ -25,7 +25,7 @@ export default function MedicinalRow({ item, skus, onUpdateSku, onUpdateField, o
     ).slice(0, 8);
   }, [input, skus]);
 
-  const hasDetails = item.extract_ratio || item.source_material || item.source_part || item.dried_herb_equivalent || item.potency_amount;
+  const hasDetails = item.extract_ratio || item.extract_type || item.extract_type_fr || item.source_material || item.source_part || item.source_material_fr || item.source_part_fr || item.dried_herb_equivalent || item.potency_amount;
 
   return (
     <div style={{ padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
@@ -88,21 +88,38 @@ export default function MedicinalRow({ item, skus, onUpdateSku, onUpdateField, o
                 placeholder="e.g. 10:1" disabled={!editing} style={{ ...mini, width: "100%", background: editing ? "#fff" : "#f1f5f9" }} />
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Extract Type</div>
+              <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Extract Type (EN)</div>
               <input value={item.extract_type || ""} onChange={e => onUpdateField(item.id, "extract_type", e.target.value)}
                 placeholder="e.g. dry" disabled={!editing} style={{ ...mini, width: "100%", background: editing ? "#fff" : "#f1f5f9" }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Extract Type (FR)</div>
+              <input value={item.extract_type_fr || ""} onChange={e => onUpdateField(item.id, "extract_type_fr", e.target.value)}
+                placeholder="e.g. matériel brut sec" disabled={!editing} style={{ ...mini, width: "100%", background: editing ? "#fff" : "#f1f5f9" }} />
             </div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Source Material</div>
+              <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Source Material (EN)</div>
               <input value={item.source_material || ""} onChange={e => onUpdateField(item.id, "source_material", e.target.value)}
                 placeholder="e.g. Withania somnifera" disabled={!editing} style={{ ...mini, width: "100%", background: editing ? "#fff" : "#f1f5f9" }} />
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Source Part</div>
+              <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Source Part (EN)</div>
               <input value={item.source_part || ""} onChange={e => onUpdateField(item.id, "source_part", e.target.value)}
                 placeholder="e.g. Root" disabled={!editing} style={{ ...mini, width: "100%", background: editing ? "#fff" : "#f1f5f9" }} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Source Material (FR)</div>
+              <input value={item.source_material_fr || ""} onChange={e => onUpdateField(item.id, "source_material_fr", e.target.value)}
+                placeholder="e.g. Withania somnifera - Racine" disabled={!editing} style={{ ...mini, width: "100%", background: editing ? "#fff" : "#f1f5f9" }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>Source Part (FR)</div>
+              <input value={item.source_part_fr || ""} onChange={e => onUpdateField(item.id, "source_part_fr", e.target.value)}
+                placeholder="e.g. Racine" disabled={!editing} style={{ ...mini, width: "100%", background: editing ? "#fff" : "#f1f5f9" }} />
             </div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>

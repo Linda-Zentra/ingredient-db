@@ -2,6 +2,7 @@ import { SECTION_DEFS, DEFAULT_STORAGE_US, DEFAULT_RISK, DEFAULT_RISK_FR } from 
 import { getVal, getProduct, getProdDisplayName, buildCautionText } from "./labelData";
 import { calcDV } from "./fdaDV";
 import { sortMedicinalIngredients, formatMedicinalIngredient, collectAllergens, formatAllergenStatement, formatExcipientWithAllergen } from "./ingredientFormatters";
+import { buildMedicinalExportSection, buildPairedExcipientLists } from "./labelExportFormatters";
 
 const FREQ_UNIT_FR = {
   daily: "par jour", "per day": "par jour", "per week": "par semaine",
@@ -35,7 +36,17 @@ export function buildExportText(label, products, excipientMap, excipientMapFr) {
   const v = (key) => getVal(SECTION_DEFS.find(d => d.key === key), s, products, excipientMap);
 
   const doseFr = computeRecommendedDoseFr(prod);
-  const nonMedFr = (excipientMapFr || {})[s.product_id] || "";
+  const sortedMedicinal = sortMedicinalIngredients(prod.product_ingredients || []);
+  const medicinalEn = buildMedicinalExportSection(sortedMedicinal, "en");
+  const medicinalFr = buildMedicinalExportSection(sortedMedicinal, "fr");
+  const pairedExcipients = buildPairedExcipientLists(prod.product_excipients || []);
+  const nonMedEn = pairedExcipients.en || excipientMap[s.product_id] || "";
+  const nonMedFr = pairedExcipients.fr || (excipientMapFr || {})[s.product_id] || "";
+  const exportWarnings = [...new Set([
+    ...medicinalEn.warnings,
+    ...medicinalFr.warnings,
+    ...pairedExcipients.warnings,
+  ])];
 
   let t = isFDA
     ? `=== FDA / US Label ===\n\n`
@@ -67,7 +78,7 @@ export function buildExportText(label, products, excipientMap, excipientMapFr) {
     t += `Serving Size: ${servingSize}\n`;
     t += `Servings Per Container: ${prod.total_count || "—"}\n`;
     t += `\n                         Amount Per Serving    % Daily Value\n`;
-    const ingredients = sortMedicinalIngredients(prod.product_ingredients || []);
+    const ingredients = sortedMedicinal;
     const ingredientData = ingredients.map(pmi => {
       const fmt = formatMedicinalIngredient(pmi);
       const dvPct = pmi.amount_value && pmi.amount_unit
@@ -104,9 +115,9 @@ export function buildExportText(label, products, excipientMap, excipientMapFr) {
     if (includeFr) t += `\nDOSE RECOMMANDÉE:\n${doseFr}\n`;
     t += `\nCAUTIONS:\n${buildCautionText(prod, "en")}\n`;
     if (includeFr) t += `\nMISES EN GARDE:\n${buildCautionText(prod, "fr")}\n`;
-    t += `\nMedicinal Ingredients:\n${v("medicinal_en")}\n`;
-    if (includeFr) t += `\nIngrédients médicinaux:\n${v("medicinal_fr")}\n`;
-    t += `\nNon-Medicinal:\n${excipientMap[s.product_id] || ""}\n`;
+    t += `\nMedicinal Ingredients:\n${medicinalEn.text || v("medicinal_en")}\n`;
+    if (includeFr) t += `\nIngrédients médicinaux:\n${medicinalFr.text || v("medicinal_fr")}\n`;
+    t += `\nNon-Medicinal:\n${nonMedEn}\n`;
     if (includeFr) t += `\nIngrédients non médicinaux:\n${nonMedFr}\n`;
     t += `\nRISK INFORMATION:\n${s.risk_info || DEFAULT_RISK}\n`;
     if (includeFr) t += `\nRENSEIGNEMENTS SUR LES RISQUES:\n${s.risk_info_fr || DEFAULT_RISK_FR}\n`;
@@ -117,10 +128,14 @@ export function buildExportText(label, products, excipientMap, excipientMapFr) {
       t += `UTILISATION RECOMMANDÉE:\n${prod.recommended_use_fr || ""}\n`;
       t += `\nDOSE RECOMMANDÉE:\n${doseFr}\n`;
       t += `\nMISES EN GARDE:\n${buildCautionText(prod, "fr")}\n`;
-      t += `\nIngrédients médicinaux:\n${v("medicinal_fr")}\n`;
+      t += `\nIngrédients médicinaux:\n${medicinalFr.text || v("medicinal_fr")}\n`;
       t += `\nIngrédients non médicinaux:\n${nonMedFr}\n`;
       t += `\nRENSEIGNEMENTS SUR LES RISQUES:\n${s.risk_info_fr || DEFAULT_RISK_FR}\n`;
     }
+  }
+
+  if (!isFDA && exportWarnings.length) {
+    t += `\n\n⚠ EXPORT QA — REVIEW BEFORE USE:\n${exportWarnings.map(warning => `- ${warning}`).join("\n")}\n`;
   }
 
   return t;
@@ -131,7 +146,11 @@ export function downloadLabelText(label, products, excipientMap, excipientMapFr)
   const prod = getProduct(products, label);
   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
+  a.href = url;
   a.download = `label_${getProdDisplayName(prod) || "draft"}.txt`;
+  document.body.appendChild(a);
   a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

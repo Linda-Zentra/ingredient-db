@@ -10,7 +10,8 @@ async function fetchProductsForExport(productIds) {
       *,
       product_brands(*),
       product_ingredients(*, ingredients(id, scientific_name, name_en, name_fr)),
-      product_excipients(*, excipients(id, name, name_fr))
+      product_excipients(*, excipients(id, name, name_fr)),
+      product_images(image_id, images(id, url, filename, type, sort_order))
     `)
     .in("id", productIds);
 
@@ -169,10 +170,12 @@ export async function exportProductsPDFCatalog(productIds) {
   const products = await fetchProductsForExport(productIds);
 
   const imageCache = new Map();
-  const imagePaths = products.map(p => p.image_path).filter(Boolean);
-  await Promise.all(imagePaths.map(async (path) => {
-    const data = await loadImageAsDataUrl(path);
-    if (data) imageCache.set(path, data);
+  const allImages = products.flatMap(p =>
+    (p.product_images || []).map(pi => pi.images).filter(Boolean)
+  );
+  await Promise.all(allImages.map(async (img) => {
+    const data = await loadImageAsDataUrl(img.url);
+    if (data) imageCache.set(img.url, data);
   }));
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -217,7 +220,10 @@ export async function exportProductsPDFCatalog(productIds) {
 
     const imgX = mx + 4;
     const imgY = y + 4;
-    const imgData = p.image_path ? imageCache.get(p.image_path) : null;
+    const firstImg = (p.product_images || [])
+      .map(pi => pi.images).filter(Boolean)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))[0];
+    const imgData = firstImg ? imageCache.get(firstImg.url) : null;
 
     if (imgData) {
       doc.addImage(imgData, imgX, imgY, imgW, imgH);

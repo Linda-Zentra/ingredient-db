@@ -283,7 +283,7 @@ export default function IngredientTab() {
       {showManageSupplier && <ManageSuppliersForm suppliers={suppliers} onAdd={handleAddSupplier} onUpdate={handleUpdateSupplier} onDelete={handleDeleteSupplier} onClose={() => setShowManageSupplier(false)} />}
       {showManageCat && <ManageCategoriesForm categories={categories} onUpdate={handleUpdateCategory} onDelete={handleDeleteCategory} onClose={() => setShowManageCat(false)} />}
 
-      <div style={{ position: "fixed", top: 16, right: 28, display: "flex", gap: 8, zIndex: 200 }}>
+      <div style={{ position: "fixed", top: 16, right: 96, display: "flex", gap: 8, zIndex: 200 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <button onClick={() => setFontSize(s => Math.max(10, s - 1))} style={hdrBtn}>-</button>
           <span style={{ color: "#64748b", fontSize: 11, minWidth: 20, textAlign: "center" }}>{fontSize}</span>

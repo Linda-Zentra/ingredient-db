@@ -1,4 +1,5 @@
-import { sortMedicinalIngredients, formatMedicinalIngredient } from "./ingredientFormatters";
+import { sortMedicinalIngredients } from "./ingredientFormatters";
+import { buildMedicinalExportSection, buildPairedExcipientLists } from "./labelExportFormatters";
 
 export function getProduct(products, label) {
   return products.find(p => p.id === label?.product_id);
@@ -15,11 +16,10 @@ export function buildExcipientMaps(products) {
   const excipientMapFr = {};
   const excipientRowsMap = {};
   products.forEach(p => {
-    const names = (p.product_excipients || []).map(pe => pe.excipients?.name).filter(Boolean);
-    const namesFr = (p.product_excipients || []).map(pe => pe.excipients?.name_fr || pe.excipients?.name).filter(Boolean);
-    if (names.length) excipientMap[p.id] = names.join(", ");
-    if (namesFr.length) excipientMapFr[p.id] = namesFr.join(", ");
-    if (p.product_excipients?.length) excipientRowsMap[p.id] = p.product_excipients;
+    const paired = buildPairedExcipientLists(p.product_excipients || []);
+    if (paired.en) excipientMap[p.id] = paired.en;
+    if (paired.fr) excipientMapFr[p.id] = paired.fr;
+    if (paired.rows.length) excipientRowsMap[p.id] = paired.rows;
   });
   return { excipientMap, excipientMapFr, excipientRowsMap };
 }
@@ -111,48 +111,13 @@ export function getVal(sec, label, products, excipientMap) {
       }
 
       case "medicinal_en": {
-        const ingredients = prod?.product_ingredients || [];
-        return sortMedicinalIngredients(ingredients)
-          .map(pmi => {
-            const fmt = formatMedicinalIngredient(pmi);
-            const parts = [fmt.nameCol, fmt.qtyCol].filter(Boolean).join("  ");
-            return fmt.line2 ? `${parts}\n  ${fmt.line2}` : parts;
-          })
-          .filter(Boolean)
-          .join("\n") || "";
+        const ingredients = sortMedicinalIngredients(prod?.product_ingredients || []);
+        return buildMedicinalExportSection(ingredients, "en").text;
       }
 
       case "medicinal_fr": {
-        const ingredients = prod?.product_ingredients || [];
-        return sortMedicinalIngredients(ingredients)
-          .map(pmi => {
-            const ci = pmi.ingredients;
-            const sku = pmi.skus;
-            const brandName = sku?.brand_name || '';
-            const skuForms = [...(sku?.sku_forms || [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-            const formWithName = skuForms.find(f => f.name_fr || f.name_en);
-            let displayName;
-            if (formWithName) {
-              const fn = formWithName.name_fr || formWithName.name_en;
-              const fAmt = formWithName.amount && formWithName.unit ? ` ${formWithName.amount} ${formWithName.unit}` : '';
-              displayName = brandName ? `${brandName} ${fn}${fAmt}` : `${fn}${fAmt}`;
-            } else {
-              const name = ci?.name_fr || ci?.name_en || ci?.scientific_name || '';
-              displayName = brandName ? `${brandName} ${name}` : name;
-            }
-            const qty = pmi.amount_value && pmi.amount_unit ? `${pmi.amount_value} ${pmi.amount_unit}` : '';
-            const lines = [[displayName, qty].filter(Boolean).join("  ")];
-            for (const f of skuForms) {
-              if (f.note) lines.push(`  (${f.note})`);
-              if (f.show_contains && (f.contains_name_fr || f.contains_name_en)) {
-                const cAmt = f.contains_amount && f.contains_unit ? ` ${f.contains_amount} ${f.contains_unit}` : '';
-                lines.push(`  Contient ${f.contains_name_fr || f.contains_name_en}${cAmt}`);
-              }
-            }
-            return lines.join("\n");
-          })
-          .filter(Boolean)
-          .join("\n") || "";
+        const ingredients = sortMedicinalIngredients(prod?.product_ingredients || []);
+        return buildMedicinalExportSection(ingredients, "fr").text;
       }
 
       case "authorization_claims": {

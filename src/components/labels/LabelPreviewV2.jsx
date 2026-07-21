@@ -27,7 +27,7 @@ function computeRecommendedDose(p) {
   return `${pop}: Take ${amount} ${unit} ${timesStr}, or as directed by a health care practitioner.`.trim();
 }
 
-export default function LabelPreviewV2({ label, product, productName, excipients, excipientRows, ingredients, medicinalEn, medicinalFr, authorizationClaims }) {
+export default function LabelPreviewV2({ label, product, productName, excipients, excipientsFr, excipientRows, ingredients, medicinalEn, medicinalFr, authorizationClaims }) {
   const s = label;
   const p = product || {};
   const box = { background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0", padding: "24px 28px", marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" };
@@ -63,7 +63,7 @@ export default function LabelPreviewV2({ label, product, productName, excipients
           <div style={{ marginTop: 8, fontSize: 11, color: "#475569", fontStyle: "italic", lineHeight: 1.5 }}>{authorizationClaims}</div>
         )}
         <div style={h}>{fr ? "Ingrédients non médicinaux" : "Non-Medicinal Ingredients"}</div>
-        <div style={b}>{fr ? s.non_medicinal_fr : excipients || "—"}</div>
+        <div style={b}>{fr ? (excipientsFr || "—") : (excipients || "—")}</div>
         <div style={{ marginTop: 16, padding: "10px 12px", background: "#fef3c7", borderRadius: 6, fontSize: 11, color: "#92400e", fontWeight: 500, lineHeight: 1.5 }}>
           {fr ? (s.risk_info_fr || DEFAULT_RISK_FR) : (s.risk_info || DEFAULT_RISK)}
         </div>

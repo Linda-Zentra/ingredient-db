@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { detectAllergens } from "../_shared/detectAllergens.ts";
+import { extractSourcePart, filterDistinctLocalizedTexts, mergeLocalizedIngredientRows, pairLocalizedIngredientRows } from "./localePairing.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -327,47 +328,6 @@ function toMcg(value: any, unit: string | null): number {
   return 0;
 }
 
-function normalizeIngredientKey(name: string): string {
-  return name
-    .normalize("NFC")
-    .toLowerCase()
-    .trim()
-    .replace(/[\u2018\u2019\u201A\u201B\u2032\u0060\u00B4\uFF07]/g, "'");
-}
-
-function extractSourcePart(sourceMaterial: string): string {
-  const idx = sourceMaterial.indexOf(' - ');
-  return idx !== -1
-    ? sourceMaterial.slice(idx + 3).trim()
-    : sourceMaterial.trim();
-}
-
-function mergeIngredients(items: any[]): any[] {
-  const groups = new Map<string, any[]>();
-  for (const item of items) {
-    const key = normalizeIngredientKey(item.ingredient_name ?? "");
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(item);
-  }
-
-  const result: any[] = [];
-  for (const group of groups.values()) {
-    if (group.length === 1) { result.push(group[0]); continue; }
-    const massEntry    = group.find(i => isMassUnit(i.quantity_unit_of_measure));
-    const potencyEntry = group.find(i => !isMassUnit(i.quantity_unit_of_measure) && i.quantity);
-    if (massEntry && potencyEntry) {
-      result.push({
-        ...massEntry,
-        potency_amount: potencyEntry.quantity,
-        potency_label:  potencyEntry.quantity_unit_of_measure,
-      });
-    } else {
-      result.push(group[0]);
-    }
-  }
-  return result;
-}
-
 // ── 4. HC API HELPER ────────────────────────────────────────────────────────
 
 async function fetchHC(endpoint: string, id: string, lang = "en") {
@@ -376,6 +336,10 @@ async function fetchHC(endpoint: string, id: string, lang = "en") {
   if (!res.ok) return null;
   const json = await res.json();
   return json.data ?? json;
+}
+
+function assertMutation(error: any, context: string) {
+  if (error) throw new Error(`${context}: ${error.message}`);
 }
 
 // ── 5. MAIN HANDLER ─────────────────────────────────────────────────────────
@@ -413,11 +377,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Service role client for data operations (bypasses RLS intentionally)
-    const supabase = createClient(
-      SUPABASE_URL,
-      Deno.env.get("SERVICE_KEY") ?? ""
-    );
+    // Run writes as the authenticated caller so existing RLS policies remain
+    // the source of truth. This also avoids depending on a legacy service key.
+    const supabase = authClient;
 
     const results = await Promise.all(npns.map(npn => importOne(String(npn), supabase)));
 
@@ -468,29 +430,30 @@ async function importOne(npn: string, supabase: any) {
     // Purposes: split and deduplicate
     const SO_RE = /^s\.?\s*o\.?$|^n\/?a$/i;
     const purposes_en = (purposeEN ?? []).map((p: any) => p.purpose).filter((p: string) => p && !SO_RE.test(p.trim()));
-    const enPurposeSet = new Set(purposes_en.map((p: string) => p.trim().toLowerCase()));
-    const purposes_fr = (purposeFR ?? []).map((p: any) => p.purpose).filter((p: string) =>
-      p && !SO_RE.test(p.trim()) && !enPurposeSet.has(p.trim().toLowerCase())
-    );
+    const frenchPurposeCandidates = (purposeFR ?? []).map((p: any) => p.purpose).filter((p: string) => p && !SO_RE.test(p.trim()));
+    const purposes_fr = filterDistinctLocalizedTexts(purposes_en, frenchPurposeCandidates);
 
     // Risk: classify into buckets
     const riskFields = cleanRiskRows(riskEN ?? []);
 
     // Step 4: upsert products (V2: includes fields formerly on product_labels)
     const recommended_use = purposeEN?.[0]?.purpose ?? null;
-    const recommended_use_fr = purposeFR?.[0]?.purpose ?? null;
+    // HC occasionally returns the English purpose from the FR endpoint. Only
+    // persist a distinct localized value; otherwise surface French as missing.
+    const recommended_use_fr = purposes_fr[0] ?? null;
 
     const { data: productData, error: productError } = await supabase
       .from("products")
       .upsert({
-        npn: parseInt(npn),
+        npn: String(npn),
+        lnhpd_id,
+        product_name: primary.product_name ?? null,
         dose_amount: doseData?.quantity_dose ?? null,
         dose_unit: doseData?.uom_type_desc_quantity_dose ?? null,
         dose_freq_min: doseData?.frequency ?? null,
         dose_freq_unit: doseData?.uom_type_desc_frequency ?? null,
         dosage_form_type: dosageFormParts[0] || null,
         dosage_form_subtype: dosageFormParts[1] || null,
-        date_of_licensing: primary.licence_date ?? null,
         licensing_status: "active",
         recommended_use,
         recommended_use_fr,
@@ -510,42 +473,54 @@ async function importOne(npn: string, supabase: any) {
 
     // Step 5: brands (delete + reinsert)
     const brandNames: string[] = [];
-    await supabase.from("product_brands").delete().eq("product_id", product_id);
+    const { error: brandDeleteError } = await supabase
+      .from("product_brands")
+      .delete()
+      .eq("product_id", product_id);
+    assertMutation(brandDeleteError, "product brands delete failed");
     for (const lic of licences) {
       brandNames.push(lic.product_name);
-      await supabase.from("product_brands").insert({
+      const { error: brandInsertError } = await supabase.from("product_brands").insert({
         product_id,
         brand_name: lic.product_name,
         is_default: lic.flag_primary_name === 1,
       });
+      assertMutation(brandInsertError, "product brand insert failed");
     }
 
     // Step 6: non-medicinal → excipients + product_excipients
     if (nonMedEN && nonMedEN.length > 0) {
-      await supabase.from("product_excipients").delete().eq("product_id", product_id);
+      const { error: excipientDeleteError } = await supabase
+        .from("product_excipients")
+        .delete()
+        .eq("product_id", product_id);
+      assertMutation(excipientDeleteError, "product excipients delete failed");
 
-      for (const item of nonMedEN) {
-        const frName = nonMedFR?.find((f: any) =>
-          f.ingredient_name.toLowerCase() === item.ingredient_name.toLowerCase()
-        )?.ingredient_name ?? null;
+      const localizedNonMed = pairLocalizedIngredientRows(nonMedEN, nonMedFR, { allowPositional: true });
+      for (const item of localizedNonMed) {
+        const frName = item.ingredient_name_fr;
 
         const excAllergens = detectAllergens(item.ingredient_name ?? "");
 
-        const { data: excData } = await supabase
+        const excipientPayload: Record<string, unknown> = {
+          name: item.ingredient_name,
+          allergen_types: excAllergens,
+        };
+        // An incomplete FR response must not erase a translation already in DB.
+        if (frName) excipientPayload.name_fr = frName;
+
+        const { data: excData, error: excipientUpsertError } = await supabase
           .from("excipients")
-          .upsert({
-            name: item.ingredient_name,
-            name_fr: frName,        // Fixed: was name_zh
-            allergen_types: excAllergens,
-          }, { onConflict: "name" })
+          .upsert(excipientPayload, { onConflict: "name" })
           .select("id")
           .single();
+        assertMutation(excipientUpsertError, "excipient upsert failed");
+        if (!excData) throw new Error("excipient upsert failed: no row returned");
 
-        if (excData) {
-          await supabase
-            .from("product_excipients")
-            .upsert({ product_id, excipient_id: excData.id }, { onConflict: "product_id,excipient_id" });
-        }
+        const { error: excipientLinkError } = await supabase
+          .from("product_excipients")
+          .upsert({ product_id, excipient_id: excData.id }, { onConflict: "product_id,excipient_id" });
+        assertMutation(excipientLinkError, "product excipient link failed");
       }
     }
 
@@ -554,25 +529,18 @@ async function importOne(npn: string, supabase: any) {
 
     // Step 8: medicinal ingredients
     if (medicinalEN && medicinalEN.length > 0) {
-      await supabase
-        .from("product_ingredients")
-        .delete()
-        .eq("product_id", product_id);
-
       // Merge duplicate ingredients (mass + potency reported separately)
-      const merged = mergeIngredients(medicinalEN);
+      const localizedMedicinal = pairLocalizedIngredientRows(medicinalEN, medicinalFR);
+      const merged = mergeLocalizedIngredientRows(localizedMedicinal);
       // Sort by mass content descending
       const sorted = merged.sort((a: any, b: any) =>
         toMcg(b.quantity, b.quantity_unit_of_measure) -
         toMcg(a.quantity, a.quantity_unit_of_measure)
       );
+      const productIngredientRows: Array<Record<string, unknown>> = [];
 
       for (let i = 0; i < sorted.length; i++) {
         const item = sorted[i];
-        const frItem = medicinalFR?.find((f: any) =>
-          f.ingredient_name?.toLowerCase() === item.ingredient_name?.toLowerCase()
-        );
-
         const ingAllergens = detectAllergens(
           item.ingredient_name ?? "",
           item.source_material ?? undefined,
@@ -581,11 +549,15 @@ async function importOne(npn: string, supabase: any) {
         // Find or create ingredient (V2: was common_ingredients)
         let ingredientId: number | null = null;
         let ingredientRecord: any = null;
-        const { data: existing } = await supabase
-          .from("ingredients")
-          .select("id, source_organisms, name_en, name_fr, scientific_name")
-          .eq("scientific_name", item.ingredient_name)
-          .maybeSingle();
+        // Prefer a curated NHPID dictionary row over a transient exact-name
+        // row created from LNHPD. The RPC normalizes harmless IUPAC notation
+        // differences such as `(2S)` vs `(S)` and brackets vs braces.
+        const { data: aliasMatches, error: aliasError } = await supabase
+          .rpc("find_ingredient_by_alias", { raw_name: item.ingredient_name });
+        if (aliasError) {
+          throw new Error("ingredient alias lookup failed: " + aliasError.message);
+        }
+        const existing = Array.isArray(aliasMatches) ? aliasMatches[0] : aliasMatches;
 
         if (existing) {
           ingredientId = existing.id;
@@ -596,27 +568,32 @@ async function importOne(npn: string, supabase: any) {
           if (!existing.name_en || existing.name_en === existing.scientific_name) {
             updatePayload.name_en = item.ingredient_name;
           }
-          if (frItem?.ingredient_name && (!existing.name_fr || existing.name_fr === existing.scientific_name)) {
-            updatePayload.name_fr = frItem.ingredient_name;
+          if (item.ingredient_name_fr && (!existing.name_fr || existing.name_fr === existing.scientific_name)) {
+            updatePayload.name_fr = item.ingredient_name_fr;
           }
-          await supabase
+          const { error: ingredientUpdateError } = await supabase
             .from("ingredients")
             .update(updatePayload)
             .eq("id", ingredientId);
+          assertMutation(ingredientUpdateError, "ingredient update failed");
         } else {
-          const { data: newIngredient } = await supabase
+          const { data: newIngredient, error: ingredientInsertError } = await supabase
             .from("ingredients")
             .insert({
               scientific_name: item.ingredient_name,
               name_en: item.ingredient_name,
-              name_fr: frItem?.ingredient_name ?? null,
+              name_fr: item.ingredient_name_fr ?? null,
               allergen_types: ingAllergens,
             })
             .select("id, source_organisms")
             .single();
+          assertMutation(ingredientInsertError, "ingredient insert failed");
+          if (!newIngredient) throw new Error("ingredient insert failed: no row returned");
           ingredientId = newIngredient?.id ?? null;
           ingredientRecord = newIngredient;
         }
+
+        if (!ingredientId) throw new Error("ingredient resolution failed: no ingredient id");
 
         if (ingredientId) {
           // Extract ratio
@@ -627,6 +604,8 @@ async function importOne(npn: string, supabase: any) {
           // Resolve source material + part
           let resolvedSourceMaterial = item.source_material ?? null;
           let resolvedSourcePart = item.source_material ? extractSourcePart(item.source_material) : null;
+          const resolvedSourceMaterialFr = item.source_material_fr ?? null;
+          const resolvedSourcePartFr = item.source_part_fr ?? null;
 
           // If NHPID source_organisms available, resolve full organism name
           const sourceOrganisms = ingredientRecord?.source_organisms;
@@ -641,26 +620,41 @@ async function importOne(npn: string, supabase: any) {
           }
 
           const rawExtractType = item.extract_type_desc ?? '';
+          const rawExtractTypeFr = item.extract_type_fr ?? '';
 
-          await supabase
-            .from("product_ingredients")
-            .insert({
-              product_id,
-              ingredient_id: ingredientId,
-              amount_value: item.quantity ? parseFloat(item.quantity) : null,
-              amount_unit: normalizeUnit(item.quantity_unit_of_measure),
-              extract_ratio: extractRatio,
-              dried_herb_equivalent: item.dried_herb_equivalent ? parseFloat(item.dried_herb_equivalent) : null,
-              dhe_unit: normalizeUnit(item.dhe_unit_of_measure),
-              potency_amount: item.potency_amount ? parseFloat(item.potency_amount) : null,
-              potency_label: normalizeUnit(item.potency_label) ?? item.potency_label ?? null,
-              source_material: resolvedSourceMaterial,
-              source_part: resolvedSourcePart,
-              extract_type: rawExtractType !== '' ? rawExtractType : null,
-              sort_order: i,
-            });
+          productIngredientRows.push({
+            product_id,
+            ingredient_id: ingredientId,
+            amount_value: item.quantity ? parseFloat(item.quantity) : null,
+            amount_unit: normalizeUnit(item.quantity_unit_of_measure),
+            extract_ratio: extractRatio,
+            dried_herb_equivalent: item.dried_herb_equivalent ? parseFloat(item.dried_herb_equivalent) : null,
+            dhe_unit: normalizeUnit(item.dhe_unit_of_measure),
+            potency_amount: item.potency_amount ? parseFloat(item.potency_amount) : null,
+            potency_label: normalizeUnit(item.potency_label) ?? item.potency_label ?? null,
+            source_material: resolvedSourceMaterial,
+            source_part: resolvedSourcePart,
+            extract_type: rawExtractType !== '' ? rawExtractType : null,
+            source_material_fr: resolvedSourceMaterialFr,
+            source_part_fr: resolvedSourcePartFr,
+            extract_type_fr: rawExtractTypeFr !== '' ? rawExtractTypeFr : null,
+            sort_order: i,
+          });
         }
       }
+
+      // Resolve every ingredient before replacing product links. This keeps an
+      // alias/migration failure from erasing the product's existing rows.
+      const { error: medicinalDeleteError } = await supabase
+        .from("product_ingredients")
+        .delete()
+        .eq("product_id", product_id);
+      assertMutation(medicinalDeleteError, "product ingredients delete failed");
+
+      const { error: productIngredientInsertError } = await supabase
+        .from("product_ingredients")
+        .insert(productIngredientRows);
+      assertMutation(productIngredientInsertError, "product ingredients insert failed");
     }
 
     return {
