@@ -1,31 +1,9 @@
 import { SECTION_DEFS, DEFAULT_STORAGE_US, DEFAULT_RISK, DEFAULT_RISK_FR } from "../constants";
 import { getVal, getProduct, getProdDisplayName, buildCautionText } from "./labelData";
+import { computeRecommendedDoseFr } from "./labelDose";
 import { calcDV } from "./fdaDV";
 import { sortMedicinalIngredients, formatMedicinalIngredient, collectAllergens, formatAllergenStatement, formatExcipientWithAllergen } from "./ingredientFormatters";
 import { buildMedicinalExportSection, buildPairedExcipientLists } from "./labelExportFormatters";
-
-const FREQ_UNIT_FR = {
-  daily: "par jour", "per day": "par jour", "per week": "par semaine",
-  weekly: "par semaine", "per month": "par mois",
-};
-
-function computeRecommendedDoseFr(prod) {
-  if (!prod.dose_amount && !prod.dose_amount_max) return "";
-  const pop = prod.dose_population === "Adults" ? "Adultes" : (prod.dose_population || "Adultes");
-  const doseMin = prod.dose_amount || 1;
-  const doseMax = prod.dose_amount_max;
-  const amount = doseMax && doseMax !== doseMin ? `${doseMin}-${doseMax}` : `${doseMin}`;
-  const unit = prod.dose_unit || "capsule(s)";
-  const freqMin = prod.dose_freq_min || "";
-  const freqMax = prod.dose_freq_max || "";
-  const rawUnit = prod.dose_freq_unit || "daily";
-  const freqUnit = FREQ_UNIT_FR[rawUnit.toLowerCase()] || rawUnit;
-  const times = freqMax && freqMax !== freqMin ? `${freqMin}-${freqMax}` : freqMin;
-  const timesStr = times
-    ? (String(times) === "1" ? freqUnit : `${times} fois ${freqUnit}`)
-    : freqUnit;
-  return `${pop} : Prendre ${amount} ${unit} ${timesStr}, ou selon les directives d'un praticien de soins de santé.`.trim();
-}
 
 export function buildExportText(label, products, excipientMap, excipientMapFr) {
   const s = label;

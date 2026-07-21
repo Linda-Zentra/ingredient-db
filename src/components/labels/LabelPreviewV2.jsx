@@ -3,28 +3,13 @@ import { DEFAULT_FDA_DISCLAIMER, DEFAULT_STORAGE_US, DEFAULT_RISK, DEFAULT_RISK_
 import { calcDV } from "../../lib/fdaDV";
 import { formatMedicinalIngredient, formatExcipientWithAllergen, collectAllergens, formatAllergenStatement, splitPurposes } from "../../lib/ingredientFormatters";
 import { buildCautionText } from "../../lib/labelData";
+import { computeRecommendedDose, computeRecommendedDoseFr } from "../../lib/labelDose";
+import { getMissingFrenchHcFields } from "../../lib/labelPreviewProvenance";
 
 function computeSpec(p) {
   const parts = [p.dosage_form_type, p.dosage_form_subtype].filter(Boolean).join(" ");
   const npn = p.npn ? `NPN: ${p.npn}` : "";
   return [parts, npn].filter(Boolean).join("  ") || "";
-}
-
-function computeRecommendedDose(p) {
-  if (!p.dose_amount && !p.dose_amount_max) return "";
-  const pop = p.dose_population || "Adults";
-  const doseMin = p.dose_amount || 1;
-  const doseMax = p.dose_amount_max;
-  const amount = doseMax && doseMax !== doseMin ? `${doseMin}-${doseMax}` : `${doseMin}`;
-  const unit = p.dose_unit || "capsule(s)";
-  const freqMin = p.dose_freq_min || "";
-  const freqMax = p.dose_freq_max || "";
-  const freqUnit = p.dose_freq_unit || "daily";
-  const times = freqMax && freqMax !== freqMin ? `${freqMin}-${freqMax}` : freqMin;
-  const timesStr = times
-    ? (String(times) === "1" ? freqUnit : `${times} time(s) ${freqUnit}`)
-    : freqUnit;
-  return `${pop}: Take ${amount} ${unit} ${timesStr}, or as directed by a health care practitioner.`.trim();
 }
 
 export default function LabelPreviewV2({ label, product, productName, excipients, excipientsFr, excipientRows, ingredients, medicinalEn, medicinalFr, authorizationClaims }) {
@@ -36,27 +21,61 @@ export default function LabelPreviewV2({ label, product, productName, excipients
 
   const spec = computeSpec(p);
   const recommendedDose = computeRecommendedDose(p);
+  const recommendedDoseFr = computeRecommendedDoseFr(p);
 
-  const renderOne = (lang) => {
+  const renderProductHeader = () => (
+    <div style={{ textAlign: "center", marginBottom: 12 }}>
+      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{productName || ""}</h2>
+      {s.subtitle && <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{s.subtitle}</div>}
+      {spec && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{spec}</div>}
+    </div>
+  );
+
+  const renderLanguageSections = (lang, { showBadge = false, showSourceNotes = false } = {}) => {
     const fr = lang === "fr";
+    const recommendedUse = fr ? p.recommended_use_fr : p.recommended_use;
+    const cautionText = buildCautionText(p, lang);
+    const doseText = fr
+      ? (showSourceNotes ? recommendedDoseFr : (s.recommended_dose_fr || ""))
+      : recommendedDose;
+    const doseIsDerived = fr && showSourceNotes && Boolean(recommendedDoseFr);
+    const missingFrenchHcFields = fr && showSourceNotes ? getMissingFrenchHcFields(p) : [];
+
     return (
-      <div style={box}>
-        {s.label_type === "double" && (
-          <div style={{ fontSize: 10, padding: "2px 8px", background: fr ? "#dbeafe" : "#dcfce7", color: fr ? "#1e40af" : "#15803d", borderRadius: 4, display: "inline-block", marginBottom: 12 }}>
-            {fr ? "Français" : "English"}
+      <>
+        {showBadge && (
+          <div style={{
+            fontSize: 10,
+            padding: "3px 8px",
+            background: fr ? "#e8eef8" : "#e8f2ee",
+            color: fr ? "#35516f" : "#315d4c",
+            borderRadius: 999,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            marginBottom: 4,
+            fontWeight: 700,
+            letterSpacing: 0.45,
+          }}>
+            {fr ? "FRANÇAIS" : "ENGLISH"}
           </div>
         )}
-        <div style={{ textAlign: "center", marginBottom: 12 }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{productName || ""}</h2>
-          {s.subtitle && <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>{s.subtitle}</div>}
-          {spec && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{spec}</div>}
-        </div>
+        {missingFrenchHcFields.length > 0 && (
+          <div className="label-preview-source-note">
+            HC French source incomplete · missing: {missingFrenchHcFields.join(", ")}
+          </div>
+        )}
         <div style={h}>{fr ? "UTILISATION RECOMMANDÉE" : "RECOMMENDED USE"}</div>
-        <div style={b}>{fr ? (p.recommended_use_fr || "—") : (p.recommended_use || "—")}</div>
+        <div style={b}>{recommendedUse || "—"}</div>
         <div style={h}>{fr ? "DOSE RECOMMANDÉE (ADULTES)" : "RECOMMENDED DOSE (ADULTS)"}</div>
-        <div style={b}>{fr ? s.recommended_dose_fr : (recommendedDose || "—")}</div>
+        <div style={b}>{fr && !showSourceNotes ? doseText : (doseText || "—")}</div>
+        {doseIsDerived && (
+          <div className="label-preview-derived-note">
+            Derived from structured dosage · Dérivé des données posologiques
+          </div>
+        )}
         <div style={h}>{fr ? "MISES EN GARDE ET PRÉCAUTIONS" : "CAUTIONS AND WARNINGS"}</div>
-        <div style={b}>{buildCautionText(p, fr ? "fr" : "en") || "—"}</div>
+        <div style={b}>{cautionText || "—"}</div>
         <div style={h}>{fr ? "Ingrédients médicinaux" : "Medicinal Ingredients"}</div>
         <div style={{ ...b, fontFamily: "monospace", fontSize: 12 }}>{fr ? (medicinalFr || "—") : (medicinalEn || "—")}</div>
         {authorizationClaims && (
@@ -67,17 +86,54 @@ export default function LabelPreviewV2({ label, product, productName, excipients
         <div style={{ marginTop: 16, padding: "10px 12px", background: "#fef3c7", borderRadius: 6, fontSize: 11, color: "#92400e", fontWeight: 500, lineHeight: 1.5 }}>
           {fr ? (s.risk_info_fr || DEFAULT_RISK_FR) : (s.risk_info || DEFAULT_RISK)}
         </div>
-        {s.licence_holder && <div style={{ marginTop: 10, fontSize: 11, color: "#64748b" }}>Licence Holder: {s.licence_holder}</div>}
-        <div style={{ marginTop: 8, fontSize: 11, color: "#64748b", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{s.company_info || ""}</div>
-        {s.side_bar && (
-          <div style={{ marginTop: 16, padding: "10px 14px", background: "#f0fdf4", borderRadius: 6, borderLeft: "3px solid #22c55e" }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: "#15803d", marginBottom: 4 }}>FEATURES</div>
-            <div style={{ fontSize: 12, color: "#334155", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{s.side_bar}</div>
+      </>
+    );
+  };
+
+  const renderSharedFooter = (featureLabel = "FEATURES") => (
+    <>
+      {s.licence_holder && <div style={{ marginTop: 10, fontSize: 11, color: "#64748b" }}>Licence Holder: {s.licence_holder}</div>}
+      <div style={{ marginTop: 8, fontSize: 11, color: "#64748b", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{s.company_info || ""}</div>
+      {s.side_bar && (
+        <div style={{ marginTop: 16, padding: "10px 14px", background: "#f0fdf4", borderRadius: 6, borderLeft: "3px solid #22c55e" }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "#15803d", marginBottom: 4 }}>{featureLabel}</div>
+          <div style={{ fontSize: 12, color: "#334155", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{s.side_bar}</div>
+        </div>
+      )}
+    </>
+  );
+
+  const renderOne = (lang) => {
+    const fr = lang === "fr";
+    return (
+      <div style={box}>
+        {s.label_type === "double" && (
+          <div style={{ fontSize: 10, padding: "2px 8px", background: fr ? "#dbeafe" : "#dcfce7", color: fr ? "#1e40af" : "#15803d", borderRadius: 4, display: "inline-block", marginBottom: 12 }}>
+            {fr ? "Français" : "English"}
           </div>
         )}
+        {renderProductHeader()}
+        {renderLanguageSections(lang)}
+        {renderSharedFooter()}
       </div>
     );
   };
+
+  const renderBilingual = () => (
+    <div style={{ ...box, padding: "28px 30px" }}>
+      <div className="label-preview-kicker">BILINGUAL SINGLE LABEL · ÉTIQUETTE BILINGUE</div>
+      {renderProductHeader()}
+      <div className="label-preview-bilingual-grid">
+        <section className="label-preview-language-column" aria-label="English label content">
+          {renderLanguageSections("en", { showBadge: true, showSourceNotes: true })}
+        </section>
+        <section className="label-preview-language-column" aria-label="French label content">
+          {renderLanguageSections("fr", { showBadge: true, showSourceNotes: true })}
+        </section>
+      </div>
+      {renderSharedFooter("FEATURES · CARACTÉRISTIQUES")}
+    </div>
+  );
 
   const renderFDA = () => {
     // Serving Size: dose_amount + dosage_form_type
@@ -239,5 +295,5 @@ export default function LabelPreviewV2({ label, product, productName, excipients
   };
 
   if (s.label_type === "us_fda") return renderFDA();
-  return s.label_type === "double" ? <>{renderOne("en")}{renderOne("fr")}</> : renderOne("en");
+  return s.label_type === "double" ? <>{renderOne("en")}{renderOne("fr")}</> : renderBilingual();
 }
